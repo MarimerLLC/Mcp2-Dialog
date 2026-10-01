@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Mcp2Dialog.Agent/Mcp2Dialog.Agent.csproj" />
+    <Project Path="src/Mcp2Dialog.Server/Mcp2Dialog.Server.csproj" />
+    <Project Path="src/Mcp2Dialog.Telemetry/Mcp2Dialog.Telemetry.csproj" />
+  </Folder>
+</Solution>
