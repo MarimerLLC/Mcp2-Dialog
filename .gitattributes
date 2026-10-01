@@ -1,0 +1,50 @@
+# Normalize line endings: store LF in the repo, use the platform's native line endings in the working tree
+* text=auto
+
+# Source and config files
+*.cs        text diff=csharp
+*.csx       text diff=csharp
+*.razor     text
+*.cshtml    text
+*.xaml      text
+*.csproj    text
+*.props     text
+*.targets   text
+*.json      text
+*.xml       text
+*.config    text
+*.resx      text
+*.md        text diff=markdown
+*.yml       text
+*.yaml      text
+*.css       text diff=css
+*.js        text
+*.ts        text
+*.html      text diff=html
+.editorconfig text
+
+# Windows-specific files always use CRLF
+*.sln       text eol=crlf
+*.slnx      text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+*.ps1       text eol=crlf
+
+# Unix shell scripts always use LF
+*.sh        text eol=lf
+
+# Binary files
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.zip       binary
+*.dll       binary
+*.exe       binary
+*.nupkg     binary
+*.snk       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
