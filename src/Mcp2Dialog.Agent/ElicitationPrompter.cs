@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Mcp2Dialog.Telemetry;
 using Microsoft.Extensions.Logging;
@@ -13,10 +14,27 @@ namespace Mcp2Dialog.Agent;
 /// </summary>
 internal sealed class ElicitationPrompter(bool autoAnswer, DialogStats stats, ILogger<ElicitationPrompter> logger)
 {
+    // The SDK resolves all of a round's input requests concurrently (Task.WhenAll). There is one console,
+    // so the questions take turns: each one's panel, prompts, and echoed answer finish before the next starts.
+    private readonly SemaphoreSlim _console = new(1, 1);
+
     public async ValueTask<ElicitResult> HandleAsync(ElicitRequestParams? request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        await _console.WaitAsync(cancellationToken);
+        try
+        {
+            return await HandleOneAsync(request, cancellationToken);
+        }
+        finally
+        {
+            _console.Release();
+        }
+    }
+
+    private async Task<ElicitResult> HandleOneAsync(ElicitRequestParams request, CancellationToken cancellationToken)
+    {
         var dialogId = request.Meta?[DialogDiagnostics.MetaKeys.DialogId]?.GetValue<string>() ?? "(unknown)";
         var round = request.Meta?[DialogDiagnostics.MetaKeys.Round]?.GetValue<int>();
 
@@ -28,7 +46,9 @@ internal sealed class ElicitationPrompter(bool autoAnswer, DialogStats stats, IL
             dialogId, round, request.Message, request.RequestedSchema?.Properties.Keys);
 
         AnsiConsole.Write(new Panel(new Markup(Markup.Escape(request.Message)))
-            .Header($"[yellow]Server needs more information[/] [grey]dialog ...{Markup.Escape(Short(dialogId))} · round {round}[/]")
+            .Header("[yellow]Server needs more information[/]" + (round is null
+                ? ""
+                : $" [grey]dialog ...{Markup.Escape(Short(dialogId))} · round {round}[/]"))
             .BorderColor(Color.Yellow)
             .Expand());
 
@@ -42,57 +62,102 @@ internal sealed class ElicitationPrompter(bool autoAnswer, DialogStats stats, IL
         return result;
     }
 
+    /// <summary>One possible reply to a field: a value to send, or a refusal (decline or cancel) that ends the question.</summary>
+    private sealed record Choice(string Label, object? Value = null, string? Refusal = null);
+
+    // Every elicitation result carries an action: accept, decline (the user refused), or cancel (the user
+    // dismissed it). Answering a question means accept. Declining and cancelling are offered as escape routes.
+    private static readonly Choice[] Refusals =
+    [
+        new("Decline to answer", Refusal: "decline"),
+        new("Cancel", Refusal: "cancel"),
+    ];
+
     private static async Task<ElicitResult> PromptAsync(ElicitRequestParams request, CancellationToken cancellationToken)
     {
-        var action = await new SelectionPrompt<string>()
-            .Title("How do you want to respond?")
-            .AddChoices("accept", "decline", "cancel")
-            .ShowAsync(AnsiConsole.Console, cancellationToken);
-
-        if (action != "accept")
-        {
-            return new ElicitResult { Action = action };
-        }
-
         var content = new Dictionary<string, JsonElement>();
         foreach (var (name, schema) in Fields(request))
         {
-            var label = Markup.Escape(schema.Title ?? name);
-            object value = schema switch
+            var label = schema.Title ?? name;
+            var choice = schema switch
             {
-                NumberSchema number => await new TextPrompt<double>(label)
-                    .Validate(v => (number.Minimum is null || v >= number.Minimum) && (number.Maximum is null || v <= number.Maximum)
-                        ? ValidationResult.Success()
-                        : ValidationResult.Error($"Must be between {number.Minimum} and {number.Maximum}"))
-                    .ShowAsync(AnsiConsole.Console, cancellationToken),
+                TitledSingleSelectEnumSchema titled =>
+                    await ChooseAsync(label, titled.OneOf.Select(o => new Choice(o.Title, o.Const)), cancellationToken),
 
-                BooleanSchema boolean => await new ConfirmationPrompt(label) { DefaultValue = boolean.Default ?? true }
-                    .ShowAsync(AnsiConsole.Console, cancellationToken),
+                UntitledSingleSelectEnumSchema untitled =>
+                    await ChooseAsync(label, untitled.Enum.Select(e => new Choice(e, e)), cancellationToken),
 
-                TitledSingleSelectEnumSchema titled => (await new SelectionPrompt<EnumSchemaOption>()
-                    .Title(label)
-                    .UseConverter(o => Markup.Escape(o.Title))
-                    .AddChoices(titled.OneOf)
-                    .ShowAsync(AnsiConsole.Console, cancellationToken)).Const,
+                // "No" is a real answer (for the surcharge it switches to express), so it isn't the same as declining.
+                BooleanSchema boolean => await ChooseAsync(label,
+                    boolean.Default == false ? [new("No", false), new("Yes", true)] : [new("Yes", true), new("No", false)],
+                    cancellationToken),
 
-                UntitledSingleSelectEnumSchema untitled => await new SelectionPrompt<string>()
-                    .Title(label)
-                    .AddChoices(untitled.Enum)
-                    .ShowAsync(AnsiConsole.Console, cancellationToken),
+                NumberSchema number => await TypeAsync(label, text =>
+                    !double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out var value) ? (null, "Enter a number")
+                    : value < number.Minimum || value > number.Maximum ? (null, $"Must be between {number.Minimum} and {number.Maximum}")
+                    : (value, null),
+                    cancellationToken),
 
-                StringSchema text => await new TextPrompt<string>(label)
-                    .Validate(v => text.MinLength is null || v.Trim().Length >= text.MinLength
-                        ? ValidationResult.Success()
-                        : ValidationResult.Error($"Must be at least {text.MinLength} characters"))
-                    .ShowAsync(AnsiConsole.Console, cancellationToken),
+                StringSchema text => await TypeAsync(label, input =>
+                    input.Trim().Length < (text.MinLength ?? 0) ? (null, $"Must be at least {text.MinLength} characters")
+                    : (input.Trim(), null),
+                    cancellationToken),
 
-                _ => await new TextPrompt<string>(label).ShowAsync(AnsiConsole.Console, cancellationToken),
+                _ => await TypeAsync(label, input => (input, null), cancellationToken),
             };
 
-            content[name] = JsonSerializer.SerializeToElement(value);
+            if (choice.Refusal is { } refusal)
+            {
+                return new ElicitResult { Action = refusal };
+            }
+
+            content[name] = JsonSerializer.SerializeToElement(choice.Value);
         }
 
         return new ElicitResult { Action = "accept", Content = content };
+    }
+
+    /// <summary>A menu of the field's options, followed by the refusals.</summary>
+    private static async Task<Choice> ChooseAsync(string label, IEnumerable<Choice> options, CancellationToken cancellationToken)
+    {
+        var choice = await new SelectionPrompt<Choice>()
+            .Title(Markup.Escape(label))
+            .UseConverter(c => c.Refusal is null ? Markup.Escape(c.Label) : $"[grey]{Markup.Escape(c.Label)}[/]")
+            .AddChoices(options.Concat(Refusals))
+            .ShowAsync(AnsiConsole.Console, cancellationToken);
+
+        // Selection prompts erase themselves once you choose, so print the choice to keep the transcript readable.
+        AnsiConsole.MarkupLine($"{Markup.Escape(label)}: [bold]{Markup.Escape(choice.Label)}[/]");
+        return choice;
+    }
+
+    /// <summary>
+    /// A typed answer. A blank line opens a menu to decline, cancel, or go back to the question.
+    /// </summary>
+    /// <param name="parse">Turns the typed text into a value, or returns an error message to show.</param>
+    private static async Task<Choice> TypeAsync(
+        string label, Func<string, (object? Value, string? Error)> parse, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var text = await new TextPrompt<string>($"{Markup.Escape(label)} [grey](blank to decline or cancel)[/]")
+                .AllowEmpty()
+                .Validate(input => string.IsNullOrWhiteSpace(input) || parse(input).Error is not { } error
+                    ? ValidationResult.Success()
+                    : ValidationResult.Error(Markup.Escape(error)))
+                .ShowAsync(AnsiConsole.Console, cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                return new Choice(text, parse(text).Value);
+            }
+
+            var choice = await ChooseAsync("No answer given", [new("Back to the question")], cancellationToken);
+            if (choice.Refusal is not null)
+            {
+                return choice;
+            }
+        }
     }
 
     /// <summary>
