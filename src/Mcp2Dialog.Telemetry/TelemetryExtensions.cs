@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -30,12 +31,20 @@ public static class TelemetryExtensions
         Action<TracerProviderBuilder>? configureTracing = null,
         Action<MeterProviderBuilder>? configureMetrics = null)
     {
-        var otlpEnabled = builder.Configuration.GetValue("Otlp:Enabled", true);
-        var otlpEndpoint = builder.Configuration["Otlp:Endpoint"] ?? "http://localhost:4317";
+        var configuration = builder.Configuration;
+        var otlpEnabled = configuration.GetValue("Otlp:Enabled", true);
+
+        // When a launcher such as the Aspire AppHost starts the app, it passes the standard OTEL_* variables
+        // (endpoint, headers with the dashboard API key, protocol, service name, and instance id). Those win.
+        // Otherwise the endpoint comes from Otlp:Endpoint in appsettings.json.
+        var launcherProvidesEndpoint = !string.IsNullOrEmpty(configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+        var otlpEndpoint = configuration["Otlp:Endpoint"] ?? "http://localhost:4317";
+        serviceName = configuration["OTEL_SERVICE_NAME"] ?? serviceName;
 
         // Serilog's OTLP sink and the OpenTelemetry SDK each describe the resource. Give them the same
         // service.instance.id so a dashboard shows this process's logs and traces as one resource.
-        var serviceInstanceId = Guid.NewGuid().ToString();
+        var serviceInstanceId = ResourceAttribute(configuration["OTEL_RESOURCE_ATTRIBUTES"], "service.instance.id")
+            ?? Guid.NewGuid().ToString();
 
         builder.Services.AddSerilog((_, logger) =>
         {
@@ -46,6 +55,7 @@ public static class TelemetryExtensions
 
             if (otlpEnabled)
             {
+                // Defaults here. Unless ignoreEnvironment is set, the sink then overrides them with any OTEL_* variables.
                 logger.WriteTo.OpenTelemetry(options =>
                 {
                     options.Endpoint = otlpEndpoint;
@@ -69,7 +79,7 @@ public static class TelemetryExtensions
                 configureTracing?.Invoke(tracing);
                 if (otlpEnabled)
                 {
-                    tracing.AddOtlpExporter(options => options.Endpoint = new Uri(otlpEndpoint));
+                    tracing.AddOtlpExporter(options => UseConfiguredEndpoint(options, launcherProvidesEndpoint, otlpEndpoint));
                 }
             })
             .WithMetrics(metrics =>
@@ -81,10 +91,31 @@ public static class TelemetryExtensions
                 configureMetrics?.Invoke(metrics);
                 if (otlpEnabled)
                 {
-                    metrics.AddOtlpExporter(options => options.Endpoint = new Uri(otlpEndpoint));
+                    metrics.AddOtlpExporter(options => UseConfiguredEndpoint(options, launcherProvidesEndpoint, otlpEndpoint));
                 }
             });
 
         return builder;
     }
+
+    /// <summary>
+    /// The exporter reads OTEL_EXPORTER_OTLP_* on its own, but setting an endpoint in code overrides that.
+    /// So only set the endpoint when no launcher supplied one.
+    /// </summary>
+    private static void UseConfiguredEndpoint(OtlpExporterOptions options, bool launcherProvidesEndpoint, string endpoint)
+    {
+        if (!launcherProvidesEndpoint)
+        {
+            options.Endpoint = new Uri(endpoint);
+            options.Protocol = OtlpExportProtocol.Grpc;
+        }
+    }
+
+    /// <summary>Reads one key from an OTEL_RESOURCE_ATTRIBUTES value (<c>key1=value1,key2=value2</c>).</summary>
+    private static string? ResourceAttribute(string? attributes, string key) =>
+        attributes?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(pair => pair.Split('=', 2))
+            .Where(parts => parts.Length == 2 && parts[0] == key)
+            .Select(parts => parts[1])
+            .FirstOrDefault();
 }

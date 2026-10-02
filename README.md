@@ -7,6 +7,7 @@ This sample shows an MCP server saying "I need more information before I can ans
 | `src/Mcp2Dialog.Server` | ASP.NET Core MCP server (stateless Streamable HTTP) with one tool, `get_shipping_quote` |
 | `src/Mcp2Dialog.Agent` | Spectre.Console CLI that connects to the server, calls the tool, and answers its questions |
 | `src/Mcp2Dialog.Telemetry` | Shared Serilog and OpenTelemetry setup, plus shared span and meta names |
+| `src/Mcp2Dialog.AppHost` | Aspire AppHost that runs the server and the dashboard, with the agent as an on-demand resource |
 
 Everything targets .NET 10 (`global.json` pins SDK 10.0.401 with `latestFeature` roll-forward).
 
@@ -57,25 +58,36 @@ An alternative is to put only a dialog id in `requestState` and keep the state i
 
 ## Running it
 
-### 1. (Optional) Start the Aspire Dashboard to see traces, logs, and metrics
+### 1. Start the server and dashboard
+
+**Option A: Aspire AppHost (recommended)**
 
 ```bash
-docker run -d --rm --name mcp2dialog-dashboard -p 18888:18888 -p 4317:18889 \
-  -e ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true \
-  mcr.microsoft.com/dotnet/aspire-dashboard:latest
+dotnet run --project src/Mcp2Dialog.AppHost
 ```
 
-Open http://localhost:18888. Both apps export OTLP/gRPC to `http://localhost:4317`, which you can change with `Otlp:Endpoint` in `appsettings.json`. Without a collector, set `Otlp:Enabled` to `false` on the server, or pass `--no-otlp` to the agent.
+This starts the Aspire Dashboard at http://localhost:18888 and the MCP server at `http://localhost:5199/mcp`. The **Resources** page lists both apps:
 
-### 2. Start the server
+- **mcp2dialog-server** runs right away. Its console output, structured logs, traces, and metrics are linked from its row.
+- **mcp2dialog-agent** doesn't start automatically. Press **Start** (▶) on its row to run one unattended dialog (`quote --auto --wire`). It exits when the dialog is done, and you can press Start again for another run. Its console log shows the wire traffic, and its trace shows all the rounds.
+
+The AppHost's `http` launch profile puts the dashboard's OTLP endpoint on `http://localhost:4317` and turns off dashboard login and the OTLP API key. That's for a local sample only. It means an agent you run from your own terminal (step 2) also reports to this dashboard, and appears under Traces and Structured logs as `mcp2dialog-agent-<id>`. The Resources page only lists apps the AppHost started.
+
+Aspire passes the standard `OTEL_*` variables (endpoint, headers, service name, and instance id) to the apps it starts. `TelemetryExtensions` defers to them, so their telemetry is linked to their rows on the Resources page.
+
+**Option B: standalone dashboard container and server**
 
 ```bash
+docker run -d --rm --name mcp2dialog-dashboard -p 18888:18888 -p 4317:18889   -e ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true   mcr.microsoft.com/dotnet/aspire-dashboard:latest
+
 dotnet run --project src/Mcp2Dialog.Server
 ```
 
-It listens on `http://localhost:5199/mcp`.
+The standalone dashboard only receives telemetry (Traces, Structured logs, Metrics). Its **Resources page is empty** because no AppHost is reporting to it. It never lists Docker containers either.
 
-### 3. Run the agent
+Both apps export OTLP/gRPC to `http://localhost:4317` by default. You can change that with `Otlp:Endpoint` in `appsettings.json`. Without any collector, set `Otlp:Enabled` to `false` on the server, or pass `--no-otlp` to the agent.
+
+### 2. Run the agent
 
 ```bash
 # Interactive: the server asks for everything
@@ -146,7 +158,8 @@ agent get_shipping_quote                         [agent]
 | `src/Mcp2Dialog.Agent/AgentSession.cs` | `McpClient` with an `ElicitationHandler`, which is all the client code MRTR needs |
 | `src/Mcp2Dialog.Agent/ElicitationPrompter.cs` | Turning elicitation schemas into Spectre prompts (or auto answers) |
 | `src/Mcp2Dialog.Agent/WireLoggingHandler.cs` | `DelegatingHandler` that shows the raw JSON-RPC traffic |
-| `src/Mcp2Dialog.Telemetry/TelemetryExtensions.cs` | Serilog (console + OTLP) and OpenTelemetry (traces + metrics) setup |
+| `src/Mcp2Dialog.Telemetry/TelemetryExtensions.cs` | Serilog (console + OTLP) and OpenTelemetry (traces + metrics) setup, respecting `OTEL_*` variables from a launcher |
+| `src/Mcp2Dialog.AppHost/AppHost.cs` | Aspire resources: the server, plus the agent as an explicit-start resource pointed at the server's endpoint |
 
 ## Packages
 
@@ -155,5 +168,6 @@ agent get_shipping_quote                         [agent]
 - `Serilog.AspNetCore`, `Serilog.Extensions.Hosting`, `Serilog.Sinks.Console`, `Serilog.Sinks.OpenTelemetry`
 - `OpenTelemetry.Extensions.Hosting`, OTLP exporter, ASP.NET Core / HttpClient / runtime instrumentation
 - `Spectre.Console`, `Spectre.Console.Cli`, `Spectre.Console.Json`
+- `Aspire.AppHost.Sdk` 13.6.0
 
 Versions are managed centrally in `Directory.Packages.props`.

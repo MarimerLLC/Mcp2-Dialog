@@ -1,0 +1,14 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.0">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AspireUseCliBundle>true</AspireUseCliBundle>
+    <UserSecretsId>1bee9ced-dcac-4e52-afc3-52644033d16e</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Mcp2Dialog.Server\Mcp2Dialog.Server.csproj" />
+    <ProjectReference Include="..\Mcp2Dialog.Agent\Mcp2Dialog.Agent.csproj" />
+  </ItemGroup>
+
+</Project>
