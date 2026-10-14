@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Mcp2Dialog.Server\Mcp2Dialog.Server.csproj" />
     <ProjectReference Include="..\Mcp2Dialog.Agent\Mcp2Dialog.Agent.csproj" />
+    <ProjectReference Include="..\Mcp2Dialog.Gateway\Mcp2Dialog.Gateway.csproj" />
   </ItemGroup>
 
 </Project>
