@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Text.Json;
+using Mcp2Dialog.Telemetry;
 using ModelContextProtocol;
 using ModelContextProtocol.Extensions.Tasks;
 using ModelContextProtocol.Protocol;
@@ -47,6 +49,7 @@ public class InMemoryTaskStore(TimeSpan timeToLive, long pollIntervalMs) : ITask
     // tasks/get. Unknown ids return null (the SDK answers -32602 "Unknown task"); expired ids get their own message.
     public Task<McpTaskInfo?> GetTaskAsync(string taskId, CancellationToken cancellationToken = default)
     {
+        Activity.Current?.SetTag(DialogDiagnostics.Tags.TaskId, taskId);
         lock (_gate)
         {
             SweepExpired(DateTimeOffset.UtcNow);

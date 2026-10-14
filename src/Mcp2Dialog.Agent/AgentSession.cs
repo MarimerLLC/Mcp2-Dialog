@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Client;
+using OpenTelemetry.Trace;
 using Serilog.Core;
 using Serilog.Events;
 using Spectre.Console;
@@ -92,6 +93,9 @@ internal sealed class AgentSession : IAsyncDisposable
             throw;
         }
     }
+
+    /// <summary>Exports any buffered spans now instead of waiting for the next batch.</summary>
+    public void FlushTelemetry() => _host.Services.GetService<TracerProvider>()?.ForceFlush(2000);
 
     public void RenderConnection()
     {

@@ -162,7 +162,15 @@ internal sealed class BookCommand : AsyncCommand<BookSettings>
                 $"[grey]saved to {Markup.Escape(Path.GetFullPath(settings.StateFile))}[/]"))
             .Header("[magenta]Server returned a task handle[/]").BorderColor(Color.Magenta1));
 
-        return await WatchAsync(session, settings, state, created.PollIntervalMs, activity, cancellationToken);
+        // End the call's span and flush telemetry now, so the start of the trace survives even if this process is
+        // killed. Watching (and any later resumed run) continues as children of it, in the same trace.
+        activity?.Stop();
+        session.FlushTelemetry();
+        using var watching = DialogDiagnostics.ActivitySource.StartActivity(
+            $"agent watch task", ActivityKind.Internal, activity?.Context ?? default);
+        watching?.SetTag(DialogDiagnostics.Tags.TaskId, created.TaskId);
+
+        return await WatchAsync(session, settings, state, created.PollIntervalMs, watching, cancellationToken);
     }
 
     private static async Task<int> WatchAsync(
