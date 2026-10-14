@@ -25,6 +25,19 @@ public static class DialogDiagnostics
         public const string InputKeys = "mcp2dialog.dialog.input_keys";
         public const string Outcome = "mcp2dialog.dialog.outcome";
         public const string ToolName = "mcp2dialog.tool.name";
+
+        /// <summary>The server instance (for example <c>server-a</c>) that handled a request in the scale-out demo.</summary>
+        public const string Instance = "mcp2dialog.instance";
+    }
+
+    /// <summary>HTTP headers used by the scale-out demo.</summary>
+    public static class Headers
+    {
+        /// <summary>Response header naming the server instance that handled the request.</summary>
+        public const string ServedBy = "X-Served-By";
+
+        /// <summary>Demo-only response header with that instance's process id, so the agent can kill it.</summary>
+        public const string ServedByPid = "X-Served-By-Pid";
     }
 
     /// <summary>

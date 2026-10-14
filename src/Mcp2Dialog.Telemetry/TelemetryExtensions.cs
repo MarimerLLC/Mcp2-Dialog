@@ -24,12 +24,16 @@ public static class TelemetryExtensions
     /// <param name="consoleLevel">An optional switch that controls only the console sink's level.</param>
     /// <param name="configureTracing">Adds app-specific trace instrumentation.</param>
     /// <param name="configureMetrics">Adds app-specific metric instrumentation.</param>
+    /// <param name="configureLogging">Adds app-specific Serilog configuration, such as enrichers.</param>
+    /// <param name="consoleTemplate">The console sink's output template. Defaults to <see cref="ConsoleTemplate"/>.</param>
     public static IHostApplicationBuilder AddDialogTelemetry(
         this IHostApplicationBuilder builder,
         string serviceName,
         LoggingLevelSwitch? consoleLevel = null,
         Action<TracerProviderBuilder>? configureTracing = null,
-        Action<MeterProviderBuilder>? configureMetrics = null)
+        Action<MeterProviderBuilder>? configureMetrics = null,
+        Action<LoggerConfiguration>? configureLogging = null,
+        string consoleTemplate = ConsoleTemplate)
     {
         var configuration = builder.Configuration;
         var otlpEnabled = configuration.GetValue("Otlp:Enabled", true);
@@ -51,7 +55,8 @@ public static class TelemetryExtensions
             logger
                 .ReadFrom.Configuration(builder.Configuration)
                 .Enrich.FromLogContext()
-                .WriteTo.Console(outputTemplate: ConsoleTemplate, levelSwitch: consoleLevel);
+                .WriteTo.Console(outputTemplate: consoleTemplate, levelSwitch: consoleLevel);
+            configureLogging?.Invoke(logger);
 
             if (otlpEnabled)
             {
