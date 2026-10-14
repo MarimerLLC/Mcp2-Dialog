@@ -12,6 +12,12 @@ app.Configure(config =>
         .WithExample("quote", "--destination", "Oslo")
         .WithExample("quote", "--auto", "--wire");
 
+    config.AddCommand<BookCommand>("book")
+        .WithDescription("Book freight. The server runs it as an MCP task: poll it, answer its question, or resume it later.")
+        .WithExample("book", "--auto", "--wire")
+        .WithExample("book", "--resume")
+        .WithExample("book", "--cancel");
+
     config.AddCommand<ToolsCommand>("tools")
         .WithDescription("List the tools the MCP server exposes.");
 });

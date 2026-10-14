@@ -7,7 +7,12 @@ using Spectre.Console.Rendering;
 
 namespace Mcp2Dialog.Agent;
 
-internal sealed record WireOptions(bool Show);
+/// <param name="Show">Print every message (--wire).</param>
+/// <param name="CompactTaskView">
+/// For the Tasks demo: show tools/list as one line, the tasks/get request in full only the first time, and a tasks/get
+/// answer in full only when its status or statusMessage changed. Everything else is shown as usual.
+/// </param>
+internal sealed record WireOptions(bool Show, bool CompactTaskView = false);
 
 /// <summary>
 /// Sits in the MCP client's HttpClient pipeline. It logs every JSON-RPC message and, with --wire, prints it to
@@ -30,7 +35,11 @@ internal sealed class WireLoggingHandler(WireOptions options, DialogStats stats,
         var requestBody = await request.Content.ReadAsStringAsync(cancellationToken);
         var requestJson = TryParse(requestBody);
         var method = requestJson?["method"]?.GetValue<string>() ?? "(response)";
-        var isRetry = requestJson?["params"]?["requestState"] is not null || requestJson?["params"]?["inputResponses"] is not null;
+        var isRetry = method == "tools/call" &&
+                      (requestJson?["params"]?["requestState"] is not null || requestJson?["params"]?["inputResponses"] is not null);
+
+        // In the compact task view these are only shown once the response says whether they're worth a panel.
+        var deferred = options.CompactTaskView && method is "tasks/get" or "tools/list";
 
         if (method == "tools/call")
         {
@@ -45,10 +54,10 @@ internal sealed class WireLoggingHandler(WireOptions options, DialogStats stats,
         logger.LogDebug("→ POST {Method}{Retry} headers {Headers} body {Body}",
             method, isRetry ? " (retry)" : "", mcpHeaders, requestBody);
 
-        if (options.Show)
+        var requestTitle = $"→ {method}" + (isRetry ? " [yellow](retry with inputResponses + requestState)[/]" : "");
+        if (options.Show && !deferred)
         {
-            var title = $"→ {method}" + (isRetry ? " [yellow](retry with inputResponses + requestState)[/]" : "");
-            Show(title, Color.Blue, requestJson, requestBody, mcpHeaders);
+            Show(requestTitle, Color.Blue, requestJson, requestBody, mcpHeaders);
         }
 
         var response = await base.SendAsync(request, cancellationToken);
@@ -72,8 +81,42 @@ internal sealed class WireLoggingHandler(WireOptions options, DialogStats stats,
 
         if (options.Show)
         {
-            var color = resultType == "input_required" ? Color.Yellow : response.IsSuccessStatusCode ? Color.Green : Color.Red;
-            var title = $"← {(int)response.StatusCode} {method}" + (resultType is null ? "" : $" [bold]resultType: {resultType}[/]");
+            // Tasks: a task handle (resultType "task") and the task status that tasks/get reports.
+            var taskStatus = responseJson?["result"]?["status"]?.GetValue<string>();
+            if (deferred && method == "tools/list")
+            {
+                var names = (responseJson?["result"]?["tools"] as JsonArray)?.Select(t => t?["name"]?.GetValue<string>());
+                AnsiConsole.MarkupLine($"[grey]  ↔ tools/list · {Markup.Escape(string.Join(", ", names ?? []))} (schemas hidden)[/]");
+                return response;
+            }
+
+            if (deferred)
+            {
+                var summary = $"{taskStatus} · {responseJson?["result"]?["statusMessage"]} {responseJson?["error"]?["message"]}".Trim();
+                if (summary == stats.LastTaskPoll)
+                {
+                    AnsiConsole.MarkupLine($"[grey]  ↔ tasks/get · {Markup.Escape(summary)} (unchanged)[/]");
+                    return response;
+                }
+
+                stats.LastTaskPoll = summary;
+                if (stats.TaskPollRequestShown)
+                {
+                    AnsiConsole.MarkupLine($"[blue]→ tasks/get[/] [grey]{Markup.Escape(string.Join("  ", mcpHeaders.Where(h => h.StartsWith("Mcp-Name", StringComparison.OrdinalIgnoreCase))))}[/]");
+                }
+                else
+                {
+                    stats.TaskPollRequestShown = true;
+                    Show(requestTitle, Color.Blue, requestJson, requestBody, mcpHeaders);
+                }
+            }
+
+            var color = resultType is "input_required" || taskStatus is "input_required" ? Color.Yellow
+                : resultType is "task" ? Color.Magenta1
+                : responseJson?["error"] is not null || taskStatus is "failed" or "cancelled" || !response.IsSuccessStatusCode ? Color.Red
+                : Color.Green;
+            var title = $"← {(int)response.StatusCode} {method}" + (resultType is null ? "" : $" [bold]resultType: {resultType}[/]") +
+                        (taskStatus is null ? "" : $" [bold]status: {taskStatus}[/]");
             Show(title, color, responseJson, responseBody, []);
         }
 

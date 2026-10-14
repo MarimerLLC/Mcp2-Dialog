@@ -24,8 +24,11 @@ internal sealed class AgentSession : IAsyncDisposable
 
     public McpClient Client { get; }
     public DialogStats Stats => _host.Services.GetRequiredService<DialogStats>();
+    public ElicitationPrompter Prompter => _host.Services.GetRequiredService<ElicitationPrompter>();
 
-    public static async Task<AgentSession> StartAsync(AgentSettings settings, bool autoAnswer, CancellationToken cancellationToken)
+    /// <param name="compactTaskPolls">With --wire, collapse tasks/get polls whose status didn't change into one line.</param>
+    public static async Task<AgentSession> StartAsync(
+        AgentSettings settings, bool autoAnswer, CancellationToken cancellationToken, bool compactTaskPolls = false)
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
@@ -42,7 +45,7 @@ internal sealed class AgentSession : IAsyncDisposable
         builder.AddDialogTelemetry("mcp2dialog-agent", consoleLevel);
 
         builder.Services.AddSingleton<DialogStats>();
-        builder.Services.AddSingleton(new WireOptions(settings.Wire));
+        builder.Services.AddSingleton(new WireOptions(settings.Wire, compactTaskPolls));
         builder.Services.AddTransient<WireLoggingHandler>();
         builder.Services.AddHttpClient("mcp").AddHttpMessageHandler<WireLoggingHandler>();
         builder.Services.AddSingleton(sp => new ElicitationPrompter(
