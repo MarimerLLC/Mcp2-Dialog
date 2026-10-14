@@ -45,30 +45,16 @@ public sealed class FreightResumeService(ITaskStore store, FreightBooking bookin
 
         logger.LogInformation("Task {TaskId}: resuming booking at stage {Stage} after a server restart", taskId, progress.NextStage + 1);
 
-        // tasks/cancel still works: the store raises TaskCancelled, which stops this run.
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-        void OnCancelled(string id)
-        {
-            if (id == taskId)
-            {
-                cancellation.Cancel();
-            }
-        }
-
-        store.TaskCancelled += OnCancelled;
+        // tasks/cancel still works: RunAsync stops when the store reports the task cancelled.
         try
         {
-            var summary = await booking.RunAsync(taskId, progress, (question, ct) => AskAsync(taskId, question, ct), cancellation.Token);
+            var summary = await booking.RunAsync(taskId, progress, (question, ct) => AskAsync(taskId, question, ct), stoppingToken);
             var result = new CallToolResult { Content = [new TextContentBlock { Text = summary }] };
             await store.SetCompletedAsync(taskId, JsonSerializer.SerializeToElement(result, McpJsonUtilities.DefaultOptions), CancellationToken.None);
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            logger.LogInformation("Task {TaskId}: stopped (cancelled or server shutting down)", taskId);
-        }
-        finally
-        {
-            store.TaskCancelled -= OnCancelled;
+            logger.LogInformation("Task {TaskId}: server shutting down; the task stays on disk and resumes on the next start", taskId);
         }
     }
 

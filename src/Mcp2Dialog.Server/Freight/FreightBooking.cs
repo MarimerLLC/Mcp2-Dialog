@@ -39,6 +39,40 @@ public sealed class FreightBooking(ITaskStore store, IConfiguration configuratio
 
     public async Task<string> RunAsync(string taskId, FreightProgress progress, AskClient ask, CancellationToken cancellationToken)
     {
+        // Stop if the task ends without us: cancelled through the store (tasks/cancel, also after a server restart),
+        // or past its TTL, which matters most while we wait for an answer that may never come.
+        using var taskEnded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (await store.GetTaskAsync(taskId, cancellationToken) is { TimeToLive: { } ttl } info && ttl > TimeSpan.Zero)
+        {
+            taskEnded.CancelAfter(info.CreatedAt + ttl - DateTimeOffset.UtcNow);
+        }
+
+        void OnCancelled(string id)
+        {
+            if (id == taskId)
+            {
+                taskEnded.Cancel();
+            }
+        }
+
+        store.TaskCancelled += OnCancelled;
+        try
+        {
+            return await RunStagesAsync(taskId, progress, ask, taskEnded.Token);
+        }
+        catch (OperationCanceledException) when (taskEnded.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogInformation("Task {TaskId} ended (cancelled or expired); stopped the booking", taskId);
+            return "Booking stopped: the task ended.";
+        }
+        finally
+        {
+            store.TaskCancelled -= OnCancelled;
+        }
+    }
+
+    private async Task<string> RunStagesAsync(string taskId, FreightProgress progress, AskClient ask, CancellationToken cancellationToken)
+    {
         await SaveAsync(taskId, progress, cancellationToken);
 
         for (var stage = progress.NextStage; stage < Stages.Length; stage++)

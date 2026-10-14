@@ -150,6 +150,7 @@ internal sealed class BookCommand : AsyncCommand<BookSettings>
             Server = settings.Server,
             CreatedAt = created.CreatedAt,
             TraceParent = activity?.Id,
+            ToolCallRequests = session.Stats.ToolCallRequests,
             Transitions = { TaskWatcher.StatusName(created.Status) },
             LastStatus = TaskWatcher.StatusName(created.Status),
         };
@@ -168,6 +169,7 @@ internal sealed class BookCommand : AsyncCommand<BookSettings>
         AgentSession session, BookSettings settings, TaskState state, long? pollIntervalMs, Activity? activity, CancellationToken cancellationToken)
     {
         state.Runs++;
+        var toolCallsBefore = session.Stats.ToolCallRequests;
         var live = !settings.Wire && AnsiConsole.Profile.Capabilities.Interactive;
         var watcher = new TaskWatcher(session.Client, session.Prompter, state, settings.StateFile, live);
 
@@ -179,14 +181,15 @@ internal sealed class BookCommand : AsyncCommand<BookSettings>
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Ctrl+C detaches. The task keeps running on the server.
-            state.ToolCallRequests += session.Stats.ToolCallRequests;
+            state.ToolCallRequests += session.Stats.ToolCallRequests - toolCallsBefore;
             TaskStateFile.Save(settings.StateFile, state);
             AnsiConsole.MarkupLine($"\n[yellow]Detached from task {Markup.Escape(state.TaskId)}.[/] It keeps running on the server. " +
                                    "Re-attach with [bold]book --resume[/].");
             return 130;
         }
 
-        state.ToolCallRequests += session.Stats.ToolCallRequests;
+        // Count any tools/call made while watching (there should be none: polling never re-issues the call).
+        state.ToolCallRequests += session.Stats.ToolCallRequests - toolCallsBefore;
         TaskStateFile.Save(settings.StateFile, state);
         activity?.SetTag(DialogDiagnostics.Tags.TaskStatus, state.LastStatus);
 

@@ -485,3 +485,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Tasks demo state (agent state file, file-backed server task store)
+.demo/

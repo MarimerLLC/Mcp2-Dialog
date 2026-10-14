@@ -84,7 +84,7 @@ public class InMemoryTaskStore(TimeSpan timeToLive, long pollIntervalMs) : ITask
         var cancelled = Transition(taskId, "cancelled", info => info with
         {
             Status = McpTaskStatus.Cancelled, InputRequests = null, StatusMessage = statusMessage,
-        });
+        }, mustExist: true);
 
         if (cancelled)
         {
@@ -155,7 +155,10 @@ public class InMemoryTaskStore(TimeSpan timeToLive, long pollIntervalMs) : ITask
     {
         lock (_gate)
         {
-            Save(Find(taskId) with { WorkState = workState });
+            if (_tasks.TryGetValue(taskId, out var stored))
+            {
+                Save(stored with { WorkState = workState });
+            }
         }
 
         return Task.CompletedTask;
@@ -197,12 +200,20 @@ public class InMemoryTaskStore(TimeSpan timeToLive, long pollIntervalMs) : ITask
         }
     }
 
-    /// <summary>Applies a change unless the task is already terminal. Returns false if nothing changed.</summary>
-    private bool Transition(string taskId, string eventName, Func<McpTaskInfo, McpTaskInfo> change, string? detail = null)
+    /// <summary>
+    /// Applies a change unless the task is already terminal. Returns false if nothing changed. A task that has expired
+    /// (or never existed) is an error only when a client asked for the change (<paramref name="mustExist"/>); for the
+    /// background work it's a no-op.
+    /// </summary>
+    private bool Transition(string taskId, string eventName, Func<McpTaskInfo, McpTaskInfo> change, string? detail = null, bool mustExist = false)
     {
         lock (_gate)
         {
-            var stored = Find(taskId);
+            if (!_tasks.TryGetValue(taskId, out var stored))
+            {
+                return mustExist ? throw new McpProtocolException($"Task not found: '{taskId}'", McpErrorCode.InvalidParams) : false;
+            }
+
             if (TaskTelemetry.IsTerminal(stored.Info.Status))
             {
                 return false;
