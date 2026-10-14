@@ -19,4 +19,19 @@ builder.AddProject<Projects.Mcp2Dialog_Agent>("mcp2dialog-agent")
     .WaitFor(server)
     .WithExplicitStart();
 
+// Tasks extension demo: one unattended book_freight run (--auto) that returns a task handle, polls tasks/get,
+// answers the mid-flight question with tasks/update, and prints the result. Also explicit-start. For the
+// kill-and-resume part of the demo, run the agent from your own terminal (see docs/demo-tasks-runbook.md).
+builder.AddProject<Projects.Mcp2Dialog_Agent>("mcp2dialog-agent-book")
+    .WithArgs(context =>
+    {
+        context.Args.Add("book");
+        context.Args.Add("--auto");
+        context.Args.Add("--wire");
+        context.Args.Add("--server");
+        context.Args.Add(ReferenceExpression.Create($"{server.GetEndpoint("http")}/mcp"));
+    })
+    .WaitFor(server)
+    .WithExplicitStart();
+
 builder.Build().Run();
