@@ -25,7 +25,8 @@ internal sealed class AgentSession : IAsyncDisposable
     public McpClient Client { get; }
     public DialogStats Stats => _host.Services.GetRequiredService<DialogStats>();
 
-    public static async Task<AgentSession> StartAsync(AgentSettings settings, bool autoAnswer, CancellationToken cancellationToken)
+    public static async Task<AgentSession> StartAsync(
+        AgentSettings settings, bool autoAnswer, CancellationToken cancellationToken, int? killAfterRound = null)
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
@@ -42,7 +43,7 @@ internal sealed class AgentSession : IAsyncDisposable
         builder.AddDialogTelemetry("mcp2dialog-agent", consoleLevel);
 
         builder.Services.AddSingleton<DialogStats>();
-        builder.Services.AddSingleton(new WireOptions(settings.Wire));
+        builder.Services.AddSingleton(new WireOptions(settings.Wire, settings.Scaleout, killAfterRound));
         builder.Services.AddTransient<WireLoggingHandler>();
         builder.Services.AddHttpClient("mcp").AddHttpMessageHandler<WireLoggingHandler>();
         builder.Services.AddSingleton(sp => new ElicitationPrompter(

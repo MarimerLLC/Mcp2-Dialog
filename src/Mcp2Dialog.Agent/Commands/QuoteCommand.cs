@@ -26,6 +26,11 @@ internal sealed class QuoteSettings : AgentSettings
     [CommandOption("--auto")]
     [Description("Answer the server's questions automatically (Oslo, 42 kg, overnight, accept surcharge).")]
     public bool Auto { get; set; }
+
+    [CommandOption("--kill-after-round <N>")]
+    [Description("Scale-out demo: once round N's response arrives, kill the server instance that served it " +
+                 "(same machine only; the instance must send X-Served-By-Pid). Use 1 or 2 for a 4-round dialog.")]
+    public int? KillAfterRound { get; set; }
 }
 
 /// <summary>
@@ -36,7 +41,7 @@ internal sealed class QuoteCommand : AsyncCommand<QuoteSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, QuoteSettings settings, CancellationToken cancellationToken)
     {
-        await using var session = await AgentSession.StartAsync(settings, settings.Auto, cancellationToken);
+        await using var session = await AgentSession.StartAsync(settings, settings.Auto, cancellationToken, settings.KillAfterRound);
         session.RenderConnection();
 
         // Discover the tool first, as an agent would. This also fills the SDK's tool cache, which it uses to add
@@ -69,6 +74,15 @@ internal sealed class QuoteCommand : AsyncCommand<QuoteSettings>
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             AnsiConsole.Write(new Panel(Markup.Escape(ex.Message)).Header("[red]MCP error[/]").BorderColor(Color.Red));
+            WriteScaleoutSummary(settings, session.Stats);
+            return 1;
+        }
+        catch (HttpRequestException ex)
+        {
+            // For example a 429 from the gateway's rate limit, or a 502 when no instance could be reached.
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            AnsiConsole.Write(new Panel(Markup.Escape(ex.Message)).Header("[red]HTTP error[/]").BorderColor(Color.Red));
+            WriteScaleoutSummary(settings, session.Stats);
             return 1;
         }
 
@@ -87,7 +101,16 @@ internal sealed class QuoteCommand : AsyncCommand<QuoteSettings>
         summary.AddRow("questions answered", stats.QuestionsAnswered.ToString());
         summary.AddRow("trace id", activity?.TraceId.ToString() ?? "(tracing off)");
         AnsiConsole.Write(summary);
+        WriteScaleoutSummary(settings, stats);
 
         return result.IsError == true ? 1 : 0;
+    }
+
+    private static void WriteScaleoutSummary(QuoteSettings settings, DialogStats stats)
+    {
+        if (settings.Scaleout && stats.Hops.Count > 0)
+        {
+            ScaleoutView.WriteSummary(stats);
+        }
     }
 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Mcp2Dialog.Telemetry;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Json;
@@ -7,7 +8,10 @@ using Spectre.Console.Rendering;
 
 namespace Mcp2Dialog.Agent;
 
-internal sealed record WireOptions(bool Show);
+/// <param name="Show">--wire: print every message.</param>
+/// <param name="Scaleout">--scaleout: show which instance served each request.</param>
+/// <param name="KillAfterRound">--kill-after-round: kill the instance that served this tools/call round.</param>
+internal sealed record WireOptions(bool Show, bool Scaleout = false, int? KillAfterRound = null);
 
 /// <summary>
 /// Sits in the MCP client's HttpClient pipeline. It logs every JSON-RPC message and, with --wire, prints it to
@@ -32,15 +36,13 @@ internal sealed class WireLoggingHandler(WireOptions options, DialogStats stats,
         var method = requestJson?["method"]?.GetValue<string>() ?? "(response)";
         var isRetry = requestJson?["params"]?["requestState"] is not null || requestJson?["params"]?["inputResponses"] is not null;
 
-        if (method == "tools/call")
-        {
-            Interlocked.Increment(ref stats.ToolCallRequests);
-        }
+        int? round = method == "tools/call" ? Interlocked.Increment(ref stats.ToolCallRequests) : null;
 
         var mcpHeaders = request.Headers
             .Where(h => h.Key.StartsWith("mcp", StringComparison.OrdinalIgnoreCase))
             .Select(h => $"{h.Key}: {string.Join(",", h.Value)}")
             .ToList();
+        var sessionIdSent = request.Headers.Contains("Mcp-Session-Id");
 
         logger.LogDebug("→ POST {Method}{Retry} headers {Headers} body {Body}",
             method, isRetry ? " (retry)" : "", mcpHeaders, requestBody);
@@ -48,7 +50,13 @@ internal sealed class WireLoggingHandler(WireOptions options, DialogStats stats,
         if (options.Show)
         {
             var title = $"→ {method}" + (isRetry ? " [yellow](retry with inputResponses + requestState)[/]" : "");
-            Show(title, Color.Blue, requestJson, requestBody, mcpHeaders);
+            var headerLines = mcpHeaders.Select(h => $"[grey]{Markup.Escape(h)}[/]").ToList();
+            if (options.Scaleout)
+            {
+                headerLines.Add(ScaleoutView.NoSessionLine(sessionIdSent));
+            }
+
+            Show(title, Color.Blue, requestJson, requestBody, headerLines);
         }
 
         var response = await base.SendAsync(request, cancellationToken);
@@ -67,25 +75,46 @@ internal sealed class WireLoggingHandler(WireOptions options, DialogStats stats,
             Interlocked.Increment(ref stats.InputRequiredResults);
         }
 
-        logger.LogDebug("← {StatusCode} {Method} resultType {ResultType} body {Body}",
-            (int)response.StatusCode, method, resultType ?? "(none)", responseBody);
+        var servedBy = response.Headers.TryGetValues(DialogDiagnostics.Headers.ServedBy, out var values) ? values.FirstOrDefault() : null;
+        var hop = new Hop(method, round, servedBy, (int)response.StatusCode, resultType,
+            request.Headers.TryGetValues("MCP-Protocol-Version", out var versions) ? versions.FirstOrDefault() : null,
+            sessionIdSent, response.Headers.Contains("Mcp-Session-Id"));
+        lock (stats.Hops)
+        {
+            stats.Hops.Add(hop);
+        }
+
+        logger.LogDebug("← {StatusCode} {Method} resultType {ResultType} served by {ServedBy} body {Body}",
+            (int)response.StatusCode, method, resultType ?? "(none)", servedBy ?? "(unknown)", responseBody);
 
         if (options.Show)
         {
             var color = resultType == "input_required" ? Color.Yellow : response.IsSuccessStatusCode ? Color.Green : Color.Red;
-            var title = $"← {(int)response.StatusCode} {method}" + (resultType is null ? "" : $" [bold]resultType: {resultType}[/]");
-            Show(title, color, responseJson, responseBody, []);
+            var title = $"← {(int)response.StatusCode} {method}" + (resultType is null ? "" : $" [bold]resultType: {resultType}[/]") +
+                        (options.Scaleout ? $" {ScaleoutView.Badge(servedBy)}" : "");
+            Show(title, color, responseJson, responseBody, options.Scaleout ? ScaleoutView.ResponseLines(hop, responseJson) : []);
+        }
+        else if (options.Scaleout)
+        {
+            ScaleoutView.WriteHopLine(hop, responseJson);
+        }
+
+        if (round is not null && round == options.KillAfterRound)
+        {
+            ScaleoutView.KillInstance(hop,
+                response.Headers.TryGetValues(DialogDiagnostics.Headers.ServedByPid, out var pids) ? pids.FirstOrDefault() : null);
         }
 
         return response;
     }
 
+    /// <param name="headers">Markup lines shown above the body.</param>
     private static void Show(string title, Color color, JsonNode? json, string raw, IReadOnlyList<string> headers)
     {
         var rows = new List<IRenderable>();
         foreach (var header in headers)
         {
-            rows.Add(new Markup($"[grey]{Markup.Escape(header)}[/]"));
+            rows.Add(new Markup(header));
         }
 
         if (json is not null)
