@@ -26,6 +26,9 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.19.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.19.0" />
 
+    <!-- Reverse proxy for the scale-out demo's gateway -->
+    <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
+
     <!-- Spectre -->
     <PackageVersion Include="Spectre.Console" Version="0.57.2" />
     <PackageVersion Include="Spectre.Console.Cli" Version="0.57.2" />

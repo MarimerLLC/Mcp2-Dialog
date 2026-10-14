@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Mcp2Dialog.Agent/Mcp2Dialog.Agent.csproj" />
     <Project Path="src/Mcp2Dialog.AppHost/Mcp2Dialog.AppHost.csproj" />
+    <Project Path="src/Mcp2Dialog.Gateway/Mcp2Dialog.Gateway.csproj" />
     <Project Path="src/Mcp2Dialog.Server/Mcp2Dialog.Server.csproj" />
     <Project Path="src/Mcp2Dialog.Telemetry/Mcp2Dialog.Telemetry.csproj" />
   </Folder>
