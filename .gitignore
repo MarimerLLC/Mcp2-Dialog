@@ -485,3 +485,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Scale-out demo: shared Data Protection key ring (holds secret keys; never commit)
+.keyring/

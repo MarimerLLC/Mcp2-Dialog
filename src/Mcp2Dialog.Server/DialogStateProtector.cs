@@ -19,16 +19,21 @@ public sealed class DialogStateProtector(IDataProtectionProvider provider)
     public string Protect(DialogState state) =>
         _protector.Protect(JsonSerializer.Serialize(state), Lifetime);
 
-    public bool TryUnprotect(string requestState, out DialogState? state)
+    /// <param name="requestState">The token the client echoed back.</param>
+    /// <param name="state">The decrypted state, if it was valid.</param>
+    /// <param name="failure">Why the token was rejected (for example, its key isn't in this instance's key ring).</param>
+    public bool TryUnprotect(string requestState, out DialogState? state, out string? failure)
     {
         try
         {
             state = JsonSerializer.Deserialize<DialogState>(_protector.Unprotect(requestState));
+            failure = state is null ? "the token held no dialog state" : null;
             return state is not null;
         }
-        catch (CryptographicException)
+        catch (CryptographicException ex)
         {
             state = null;
+            failure = ex.Message;
             return false;
         }
     }

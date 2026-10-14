@@ -9,6 +9,32 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
+    },
+    "server-a": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5199",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Instance__Name": "server-a",
+        "Instance__ExposePid": "true",
+        "DataProtection__KeyRingPath": "../../.keyring",
+        "Caching__ToolsListTtl": "00:05:00"
+      }
+    },
+    "server-b": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5200",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Instance__Name": "server-b",
+        "Instance__ExposePid": "true",
+        "DataProtection__KeyRingPath": "../../.keyring",
+        "Caching__ToolsListTtl": "00:05:00"
+      }
     }
   }
 }

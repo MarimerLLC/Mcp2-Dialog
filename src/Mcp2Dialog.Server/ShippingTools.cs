@@ -19,7 +19,8 @@ namespace Mcp2Dialog.Server;
 /// This repeats until the tool has what it needs.
 /// </summary>
 [McpServerToolType]
-public sealed class ShippingTools(DialogStateProtector protector, ShippingRates rates, ILogger<ShippingTools> logger)
+public sealed class ShippingTools(
+    DialogStateProtector protector, ShippingRates rates, ServerInstance instance, ILogger<ShippingTools> logger)
 {
     private static readonly Counter<long> Rounds = DialogDiagnostics.Meter.CreateCounter<long>(
         "mcp2dialog.dialog.rounds", description: "tools/call requests handled as part of a dialog, by outcome");
@@ -43,8 +44,9 @@ public sealed class ShippingTools(DialogStateProtector protector, ShippingRates 
         DialogState state;
         if (request.RequestState is { } token)
         {
-            if (!protector.TryUnprotect(token, out var previous))
+            if (!protector.TryUnprotect(token, out var previous, out var failure))
             {
+                logger.LogWarning("Rejected requestState: {Failure} (Instances that share dialogs need the same key ring.)", failure);
                 throw new McpException("The dialog state is invalid or has expired. Start a new quote.");
             }
 
@@ -65,10 +67,12 @@ public sealed class ShippingTools(DialogStateProtector protector, ShippingRates 
 
         // Tag the SDK's tools/call span and add one of our own, so each round is easy to find in a trace.
         Activity.Current?.SetTag(DialogDiagnostics.Tags.DialogId, state.DialogId);
+        Activity.Current?.SetTag(DialogDiagnostics.Tags.Instance, instance.Name);
         using var activity = DialogDiagnostics.ActivitySource.StartActivity($"dialog round {state.Round}");
         activity?.SetTag(DialogDiagnostics.Tags.DialogId, state.DialogId);
         activity?.SetTag(DialogDiagnostics.Tags.Round, state.Round);
         activity?.SetTag(DialogDiagnostics.Tags.ToolName, "get_shipping_quote");
+        activity?.SetTag(DialogDiagnostics.Tags.Instance, instance.Name);
 
         logger.LogInformation(
             "Dialog {DialogId} round {DialogRound}: {Kind} (protocol {ProtocolVersion}, MRTR supported: {MrtrSupported})",
