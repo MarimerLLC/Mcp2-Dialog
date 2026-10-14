@@ -1,0 +1,48 @@
+Mcp2-Dialog scale-out demo: run7 - one dialog's trace in the Aspire dashboard
+Captured:  2026-10-14 18:49:05 -0500 on RockyMini; commit 26e2178
+How:       dotnet run --project src/Mcp2Dialog.AppHost --launch-profile scaleout
+           aspire resource mcp2dialog-agent start      (same as pressing Start on its row)
+           aspire otel spans --dashboard-url http://localhost:18888 --trace-id 2c464f3412f7ce814a9e2f7581335a99 --format Json
+Tree built from that JSON (saved next to this file). Tags shown: mcp2dialog.instance, round, proxy.destination_id, server.port.
+
+agent get_shipping_quote                       [mcp2dialog-agent] 
+  tools/call get_shipping_quote                [mcp2dialog-agent] 
+    POST                                       [mcp2dialog-agent] server.port=5300
+      POST /mcp/{**rest}                       [mcp2dialog-gateway] server.port=5300
+        proxy.forwarder                        [mcp2dialog-gateway] proxy.destination_id=server-a
+          POST                                 [mcp2dialog-gateway] server.port=5199
+            POST /mcp/                         [mcp2dialog-server-a] mcp2dialog.instance=server-a server.port=5199
+    tools/call get_shipping_quote              [mcp2dialog-server-a] mcp2dialog.instance=server-a
+      dialog round 1                           [mcp2dialog-server-a] mcp2dialog.instance=server-a mcp2dialog.dialog.round=1
+  elicitation                                  [mcp2dialog-agent] mcp2dialog.dialog.round=1
+  elicitation                                  [mcp2dialog-agent] mcp2dialog.dialog.round=1
+  tools/call get_shipping_quote                [mcp2dialog-agent] 
+    POST                                       [mcp2dialog-agent] server.port=5300
+      POST /mcp/{**rest}                       [mcp2dialog-gateway] server.port=5300
+        proxy.forwarder                        [mcp2dialog-gateway] proxy.destination_id=server-b
+          POST                                 [mcp2dialog-gateway] server.port=5200
+            POST /mcp/                         [mcp2dialog-server-b] mcp2dialog.instance=server-b server.port=5200
+    tools/call get_shipping_quote              [mcp2dialog-server-b] mcp2dialog.instance=server-b
+      dialog round 2                           [mcp2dialog-server-b] mcp2dialog.instance=server-b mcp2dialog.dialog.round=2
+  elicitation                                  [mcp2dialog-agent] mcp2dialog.dialog.round=2
+  tools/call get_shipping_quote                [mcp2dialog-agent] 
+    POST                                       [mcp2dialog-agent] server.port=5300
+      POST /mcp/{**rest}                       [mcp2dialog-gateway] server.port=5300
+        proxy.forwarder                        [mcp2dialog-gateway] proxy.destination_id=server-a
+          POST                                 [mcp2dialog-gateway] server.port=5199
+            POST /mcp/                         [mcp2dialog-server-a] mcp2dialog.instance=server-a server.port=5199
+    tools/call get_shipping_quote              [mcp2dialog-server-a] mcp2dialog.instance=server-a
+      dialog round 3                           [mcp2dialog-server-a] mcp2dialog.instance=server-a mcp2dialog.dialog.round=3
+  elicitation                                  [mcp2dialog-agent] mcp2dialog.dialog.round=3
+  tools/call get_shipping_quote                [mcp2dialog-agent] 
+    POST                                       [mcp2dialog-agent] server.port=5300
+      POST /mcp/{**rest}                       [mcp2dialog-gateway] server.port=5300
+        proxy.forwarder                        [mcp2dialog-gateway] proxy.destination_id=server-b
+          POST                                 [mcp2dialog-gateway] server.port=5200
+            POST /mcp/                         [mcp2dialog-server-b] mcp2dialog.instance=server-b server.port=5200
+    tools/call get_shipping_quote              [mcp2dialog-server-b] mcp2dialog.instance=server-b
+      dialog round 4                           [mcp2dialog-server-b] mcp2dialog.instance=server-b mcp2dialog.dialog.round=4
+
+37 spans in one trace; resources: ['mcp2dialog-agent', 'mcp2dialog-gateway', 'mcp2dialog-server-a', 'mcp2dialog-server-b']
+spans tagged mcp2dialog.instance: 12 -> ['server-a', 'server-b']
+root span(s): ['agent get_shipping_quote']

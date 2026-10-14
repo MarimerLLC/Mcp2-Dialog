@@ -1,0 +1,93 @@
+Mcp2-Dialog scale-out demo: run6-isolated-keys-on-server-b
+Captured:  2026-10-14 18:46:42 -0500 on RockyMini (MINGW64_NT-10.0-26220)
+Commit:    26e2178 on demo/scaleout
+server-a:  dotnet run --project src/Mcp2Dialog.Server --launch-profile server-a -- --Otlp:Enabled=false 
+server-b:  dotnet run --project src/Mcp2Dialog.Server --launch-profile server-b -- --Otlp:Enabled=false --Instance:IsolatedKeys=true
+gateway:   dotnet run --project src/Mcp2Dialog.Gateway -- --Otlp:Enabled=false 
+agent:     dotnet run --project src/Mcp2Dialog.Agent -- quote --auto --scaleout --server http://localhost:5300/mcp --no-otlp
+Agent exit code 1, agent run took 1.7 s (including dotnet run startup)
+
+================================ agent console ================================
+  → server/discover     server-a  200 complete ttlMs=0 cacheScope=private
+┌─Connected────────────────────────────────────────────────────────────┐
+│ Server      mcp2dialog-server 1.0.0                                  │
+│ Protocol    2026-07-28                                               │
+│ Session id  (none: stateless, so requestState correlates the rounds) │
+└──────────────────────────────────────────────────────────────────────┘
+  → tools/list          server-b  200 complete ttlMs=300000 cacheScope=public
+Agent → get_shipping_quote {}
+  → tools/call round 1  server-a  200 input_required
+┌─Server needs more information dialog ...58cf7efe · round 1───────────────────┐
+│ Where is the package going?                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+  auto-answer destination = "Oslo"
+┌─Server needs more information dialog ...58cf7efe · round 1───────────────────┐
+│ How much does the package weigh?                                             │
+└──────────────────────────────────────────────────────────────────────────────┘
+  auto-answer weightKg = 42
+  → tools/call round 2  server-b  200 complete
+┌─Server error─────────────────────────────────────────────────────────────────┐
+│ An error occurred invoking 'get_shipping_quote': The dialog state is invalid │
+│ or has expired. Start a new quote.                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+╭──────────────────────────┬──────────────────────────────────╮
+│ tools/call HTTP requests │ 2                                │
+│ input_required results   │ 1                                │
+│ questions answered       │ 2                                │
+│ trace id                 │ ca40e7a775f31c5de735c1bdef056c26 │
+╰──────────────────────────┴──────────────────────────────────╯
+  Which instance served each request   
+╭──────────┬──────┬─────────┬─────────╮
+│ discover │ list │ round 1 │ round 2 │
+├──────────┼──────┼─────────┼─────────┤
+│    A     │  B   │    A    │    B    │
+╰──────────┴──────┴─────────┴─────────╯
+╭───────────────────────┬─────────────────────────────╮
+│ requests per instance │  server-a  2    server-b  2 │
+│ sequence              │ A → B → A → B               │
+│ initialize sent       │ never                       │
+│ Mcp-Session-Id        │ none sent, none received    │
+│ MCP-Protocol-Version  │ 2026-07-28 on 4 of 4        │
+╰───────────────────────┴─────────────────────────────╯
+
+================================ gateway log ================================
+[18:46:41.605 INF] GET - → server-b 405 in 42 ms
+[18:46:43.961 INF] server/discover - → server-a 200 in 124 ms
+[18:46:44.159 INF] tools/list - → server-b 200 in 116 ms
+[18:46:44.218 INF] tools/call get_shipping_quote → server-a 200 in 42 ms
+[18:46:44.263 INF] tools/call get_shipping_quote → server-b 200 in 24 ms
+
+================================ server-a log ================================
+[18:46:40.315 INF] server-a Now listening on: http://localhost:5199 <Microsoft.Hosting.Lifetime> 
+[18:46:40.405 INF] server-a HTTP GET /mcp responded 405 in 0.6974 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 0d711592a82230df8d9765418243f4d1
+[18:46:43.943 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'server/discover' request handler called. <ModelContextProtocol.Server.McpServer> b314eba94b118dfe4281fa95324a8519
+[18:46:43.956 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'server/discover' request handler completed in 9.8721ms. <ModelContextProtocol.Server.McpServer> b314eba94b118dfe4281fa95324a8519
+[18:46:43.959 INF] server-a HTTP POST /mcp responded 200 in 117.5100 ms <Serilog.AspNetCore.RequestLoggingMiddleware> b314eba94b118dfe4281fa95324a8519
+[18:46:44.179 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler called. <ModelContextProtocol.Server.McpServer> ca40e7a775f31c5de735c1bdef056c26
+[18:46:44.193 INF] server-a Dialog 01a13ccfa7607185820970aa58cf7efe round 1: new request (protocol 2026-07-28, MRTR supported: True) <Mcp2Dialog.Server.ShippingTools> ca40e7a775f31c5de735c1bdef056c26
+[18:46:44.205 INF] server-a Dialog 01a13ccfa7607185820970aa58cf7efe round 1: returning input_required for ["destination", "weight"] <Mcp2Dialog.Server.ShippingTools> ca40e7a775f31c5de735c1bdef056c26
+[18:46:44.218 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler completed in 38.4324ms. <ModelContextProtocol.Server.McpServer> ca40e7a775f31c5de735c1bdef056c26
+[18:46:44.218 INF] server-a HTTP POST /mcp responded 200 in 41.6109 ms <Serilog.AspNetCore.RequestLoggingMiddleware> ca40e7a775f31c5de735c1bdef056c26
+
+================================ server-b log ================================
+[18:46:41.400 INF] server-b Now listening on: http://localhost:5200 <Microsoft.Hosting.Lifetime> 
+[18:46:41.498 INF] server-b HTTP GET /mcp responded 405 in 0.5680 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 13a8d8d8d4a2a66ee676bd400104cb31
+[18:46:41.595 INF] server-b HTTP GET /mcp responded 405 in 0.0144 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 61b0853cc84b93c42b7896f1118ec40e
+[18:46:44.133 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/list' request handler called. <ModelContextProtocol.Server.McpServer> b08601d03ef02df1b8728e0e5872a6f5
+[18:46:44.155 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/list' request handler completed in 18.5988ms. <ModelContextProtocol.Server.McpServer> b08601d03ef02df1b8728e0e5872a6f5
+[18:46:44.158 INF] server-b HTTP POST /mcp responded 200 in 113.9915 ms <Serilog.AspNetCore.RequestLoggingMiddleware> b08601d03ef02df1b8728e0e5872a6f5
+[18:46:44.241 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler called. <ModelContextProtocol.Server.McpServer> ca40e7a775f31c5de735c1bdef056c26
+[18:46:44.255 WRN] server-b Rejected requestState: The key {5aa56fb4-1970-443d-8523-fdf7867e546d} was not found in the key ring. For more information go to https://aka.ms/aspnet/dataprotectionwarning (Instances that share dialogs need the same key ring.) <Mcp2Dialog.Server.ShippingTools> ca40e7a775f31c5de735c1bdef056c26
+[18:46:44.257 ERR] server-b "get_shipping_quote" threw an unhandled exception. <ModelContextProtocol.Server.McpServer> ca40e7a775f31c5de735c1bdef056c26
+ModelContextProtocol.McpException: The dialog state is invalid or has expired. Start a new quote.
+   at Mcp2Dialog.Server.ShippingTools.GetShippingQuote(McpServer server, RequestContext`1 context, String destination, Nullable`1 weightKg, String speed) in S:\src\mcp2-dialog-scaleout\src\Mcp2Dialog.Server\ShippingTools.cs:line 50
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithManyArgs(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+   at System.Reflection.RuntimeMethodInfo.Invoke(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+   at Microsoft.Extensions.AI.AIFunctionFactory.ReflectionInvoke(MethodInfo method, Object target, Object[] arguments)
+   at Microsoft.Extensions.AI.AIFunctionFactory.ReflectionAIFunction.InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
+   at Microsoft.Extensions.AI.AIFunctionFactory.ReflectionAIFunction.InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
+   at ModelContextProtocol.Server.AIFunctionMcpServerTool.InvokeAsync(RequestContext`1 request, CancellationToken cancellationToken)
+   at ModelContextProtocol.Server.McpServerImpl.<>c__DisplayClass85_1.<<BuildComposedCallToolHandler>g__InvokeOrdinaryPipelineAsync|1>d.MoveNext()
+[18:46:44.263 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler completed in 21.4712ms. <ModelContextProtocol.Server.McpServer> ca40e7a775f31c5de735c1bdef056c26
+[18:46:44.263 INF] server-b HTTP POST /mcp responded 200 in 23.3315 ms <Serilog.AspNetCore.RequestLoggingMiddleware> ca40e7a775f31c5de735c1bdef056c26

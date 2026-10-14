@@ -1,0 +1,604 @@
+Mcp2-Dialog scale-out demo: run2-round-robin-wire
+Captured:  2026-10-14 18:46:16 -0500 on RockyMini (MINGW64_NT-10.0-26220)
+Commit:    26e2178 on demo/scaleout
+server-a:  dotnet run --project src/Mcp2Dialog.Server --launch-profile server-a -- --Otlp:Enabled=false 
+server-b:  dotnet run --project src/Mcp2Dialog.Server --launch-profile server-b -- --Otlp:Enabled=false 
+gateway:   dotnet run --project src/Mcp2Dialog.Gateway -- --Otlp:Enabled=false 
+agent:     dotnet run --project src/Mcp2Dialog.Agent -- quote --auto --wire --scaleout --server http://localhost:5300/mcp --no-otlp
+Agent exit code 0, agent run took 1.9 s (including dotnet run startup)
+
+================================ agent console ================================
+┌─→ server/discover────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: server/discover                                                  │
+│ Mcp-Session-Id: none                                                         │
+│ {                                                                            │
+│    "method": "server/discover",                                              │
+│    "params": {                                                               │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-f118d29942f3257edc8af000f582af6a-d50e5829b1a4d575-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 1,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 server/discover resultType: complete  server-a ────────────────────────┐
+│ X-Served-By:  server-a                                                       │
+│ caching hint: ttlMs=0 cacheScope=private                                     │
+│ {                                                                            │
+│    "result": {                                                               │
+│       "supportedVersions": [                                                 │
+│          "2026-07-28"                                                        │
+│       ],                                                                     │
+│       "capabilities": {                                                      │
+│          "logging": {                                                        │
+│          },                                                                  │
+│          "tools": {                                                          │
+│          }                                                                   │
+│       },                                                                     │
+│       "ttlMs": 0,                                                            │
+│       "cacheScope": "private",                                               │
+│       "resultType": "complete",                                              │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 1,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─Connected────────────────────────────────────────────────────────────┐
+│ Server      mcp2dialog-server 1.0.0                                  │
+│ Protocol    2026-07-28                                               │
+│ Session id  (none: stateless, so requestState correlates the rounds) │
+└──────────────────────────────────────────────────────────────────────┘
+┌─→ tools/list─────────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: tools/list                                                       │
+│ Mcp-Session-Id: none                                                         │
+│ {                                                                            │
+│    "method": "tools/list",                                                   │
+│    "params": {                                                               │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-5a333f0b33728f06a8fe298177439507-7e86ae98b0923185-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 2,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 tools/list resultType: complete  server-b ─────────────────────────────┐
+│ X-Served-By:  server-b                                                       │
+│ caching hint: ttlMs=300000 cacheScope=public                                 │
+│ {                                                                            │
+│    "result": {                                                               │
+│       "tools": [                                                             │
+│          {                                                                   │
+│             "name": "get_shipping_quote",                                    │
+│             "description": "Gets a shipping quote for a package. Any details │
+│ that are missing are requested from the user through a multi round-trip      │
+│ dialog, so all arguments are optional.",                                     │
+│             "inputSchema": {                                                 │
+│                "type": "object",                                             │
+│                "properties": {                                               │
+│                   "destination": {                                           │
+│                      "description": "Destination city",                      │
+│                      "type": [                                               │
+│                         "string",                                            │
+│                         "null"                                               │
+│                      ],                                                      │
+│                      "default": null                                         │
+│                   },                                                         │
+│                   "weightKg": {                                              │
+│                      "description": "Package weight in kilograms",           │
+│                      "type": [                                               │
+│                         "number",                                            │
+│                         "null"                                               │
+│                      ],                                                      │
+│                      "default": null                                         │
+│                   },                                                         │
+│                   "speed": {                                                 │
+│                      "description": "Service level: standard, express, or    │
+│ overnight",                                                                  │
+│                      "type": [                                               │
+│                         "string",                                            │
+│                         "null"                                               │
+│                      ],                                                      │
+│                      "default": null                                         │
+│                   }                                                          │
+│                }                                                             │
+│             },                                                               │
+│             "annotations": {                                                 │
+│                "readOnlyHint": true                                          │
+│             }                                                                │
+│          }                                                                   │
+│       ],                                                                     │
+│       "ttlMs": 300000,                                                       │
+│       "cacheScope": "public",                                                │
+│       "resultType": "complete",                                              │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 2,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+Agent → get_shipping_quote {}
+┌─→ tools/call─────────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: tools/call                                                       │
+│ Mcp-Name: get_shipping_quote                                                 │
+│ Mcp-Session-Id: none                                                         │
+│ {                                                                            │
+│    "method": "tools/call",                                                   │
+│    "params": {                                                               │
+│       "name": "get_shipping_quote",                                          │
+│       "arguments": {                                                         │
+│       },                                                                     │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-0258ce30cfd08549a91c607162bcba9c-2441772f11dd310c-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 3,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 tools/call resultType: input_required  server-a ───────────────────────┐
+│ X-Served-By:  server-a                                                       │
+│ {                                                                            │
+│    "result": {                                                               │
+│       "inputRequests": {                                                     │
+│          "destination": {                                                    │
+│             "method": "elicitation/create",                                  │
+│             "params": {                                                      │
+│                "mode": "form",                                               │
+│                "message": "Where is the package going?",                     │
+│                "requestedSchema": {                                          │
+│                   "type": "object",                                          │
+│                   "properties": {                                            │
+│                      "destination": {                                        │
+│                         "type": "string",                                    │
+│                         "title": "Destination city",                         │
+│                         "minLength": 2                                       │
+│                      }                                                       │
+│                   },                                                         │
+│                   "required": [                                              │
+│                      "destination"                                           │
+│                   ]                                                          │
+│                },                                                            │
+│                "_meta": {                                                    │
+│                   "mcp2dialog/dialogId": "01a13ccf3f96752886933f0105956630", │
+│                   "mcp2dialog/round": 1                                      │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "weight": {                                                         │
+│             "method": "elicitation/create",                                  │
+│             "params": {                                                      │
+│                "mode": "form",                                               │
+│                "message": "How much does the package weigh?",                │
+│                "requestedSchema": {                                          │
+│                   "type": "object",                                          │
+│                   "properties": {                                            │
+│                      "weightKg": {                                           │
+│                         "type": "number",                                    │
+│                         "title": "Weight (kg)",                              │
+│                         "minimum": 0.1,                                      │
+│                         "maximum": 70                                        │
+│                      }                                                       │
+│                   },                                                         │
+│                   "required": [                                              │
+│                      "weightKg"                                              │
+│                   ]                                                          │
+│                },                                                            │
+│                "_meta": {                                                    │
+│                   "mcp2dialog/dialogId": "01a13ccf3f96752886933f0105956630", │
+│                   "mcp2dialog/round": 1                                      │
+│                }                                                             │
+│             }                                                                │
+│          }                                                                   │
+│       },                                                                     │
+│       "requestState": "CfDJ8LRvpVpwGT1EhSP994Z-... (368 chars, encrypted by  │
+│ the server)",                                                                │
+│       "resultType": "input_required",                                        │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 3,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─Server needs more information dialog ...05956630 · round 1───────────────────┐
+│ Where is the package going?                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+  auto-answer destination = "Oslo"
+┌─Server needs more information dialog ...05956630 · round 1───────────────────┐
+│ How much does the package weigh?                                             │
+└──────────────────────────────────────────────────────────────────────────────┘
+  auto-answer weightKg = 42
+┌─→ tools/call (retry with inputResponses + requestState)──────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: tools/call                                                       │
+│ Mcp-Name: get_shipping_quote                                                 │
+│ Mcp-Session-Id: none                                                         │
+│ {                                                                            │
+│    "method": "tools/call",                                                   │
+│    "params": {                                                               │
+│       "name": "get_shipping_quote",                                          │
+│       "arguments": {                                                         │
+│       },                                                                     │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-0258ce30cfd08549a91c607162bcba9c-bd809e14d5d5772e-01"                    │
+│       },                                                                     │
+│       "inputResponses": {                                                    │
+│          "destination": {                                                    │
+│             "action": "accept",                                              │
+│             "content": {                                                     │
+│                "destination": "Oslo"                                         │
+│             }                                                                │
+│          },                                                                  │
+│          "weight": {                                                         │
+│             "action": "accept",                                              │
+│             "content": {                                                     │
+│                "weightKg": 42                                                │
+│             }                                                                │
+│          }                                                                   │
+│       },                                                                     │
+│       "requestState": "CfDJ8LRvpVpwGT1EhSP994Z-... (368 chars, encrypted by  │
+│ the server)"                                                                 │
+│    },                                                                        │
+│    "id": 4,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 tools/call resultType: input_required  server-b ───────────────────────┐
+│ X-Served-By:  server-b                                                       │
+│ {                                                                            │
+│    "result": {                                                               │
+│       "inputRequests": {                                                     │
+│          "speed": {                                                          │
+│             "method": "elicitation/create",                                  │
+│             "params": {                                                      │
+│                "mode": "form",                                               │
+│                "message": "Shipping 42 kg to Oslo. Which service do you      │
+│ want?",                                                                      │
+│                "requestedSchema": {                                          │
+│                   "type": "object",                                          │
+│                   "properties": {                                            │
+│                      "speed": {                                              │
+│                         "type": "string",                                    │
+│                         "title": "Service level",                            │
+│                         "oneOf": [                                           │
+│                            {                                                 │
+│                               "const": "standard",                           │
+│                               "title": "Standard (5-7 days) - $81.50"        │
+│                            },                                                │
+│                            {                                                 │
+│                               "const": "express",                            │
+│                               "title": "Express (2 days) - $146.70"          │
+│                            },                                                │
+│                            {                                                 │
+│                               "const": "overnight",                          │
+│                               "title": "Overnight (next day) - $260.80"      │
+│                            }                                                 │
+│                         ]                                                    │
+│                      }                                                       │
+│                   },                                                         │
+│                   "required": [                                              │
+│                      "speed"                                                 │
+│                   ]                                                          │
+│                },                                                            │
+│                "_meta": {                                                    │
+│                   "mcp2dialog/dialogId": "01a13ccf3f96752886933f0105956630", │
+│                   "mcp2dialog/round": 2                                      │
+│                }                                                             │
+│             }                                                                │
+│          }                                                                   │
+│       },                                                                     │
+│       "requestState": "CfDJ8LRvpVpwGT1EhSP994Z-... (368 chars, encrypted by  │
+│ the server)",                                                                │
+│       "resultType": "input_required",                                        │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 4,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─Server needs more information dialog ...05956630 · round 2───────────────────┐
+│ Shipping 42 kg to Oslo. Which service do you want?                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+  auto-answer speed = "overnight"
+┌─→ tools/call (retry with inputResponses + requestState)──────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: tools/call                                                       │
+│ Mcp-Name: get_shipping_quote                                                 │
+│ Mcp-Session-Id: none                                                         │
+│ {                                                                            │
+│    "method": "tools/call",                                                   │
+│    "params": {                                                               │
+│       "name": "get_shipping_quote",                                          │
+│       "arguments": {                                                         │
+│       },                                                                     │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-0258ce30cfd08549a91c607162bcba9c-deb7c67f925f71b3-01"                    │
+│       },                                                                     │
+│       "inputResponses": {                                                    │
+│          "speed": {                                                          │
+│             "action": "accept",                                              │
+│             "content": {                                                     │
+│                "speed": "overnight"                                          │
+│             }                                                                │
+│          }                                                                   │
+│       },                                                                     │
+│       "requestState": "CfDJ8LRvpVpwGT1EhSP994Z-... (368 chars, encrypted by  │
+│ the server)"                                                                 │
+│    },                                                                        │
+│    "id": 5,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 tools/call resultType: input_required  server-a ───────────────────────┐
+│ X-Served-By:  server-a                                                       │
+│ {                                                                            │
+│    "result": {                                                               │
+│       "inputRequests": {                                                     │
+│          "surcharge": {                                                      │
+│             "method": "elicitation/create",                                  │
+│             "params": {                                                      │
+│                "mode": "form",                                               │
+│                "message": "Overnight packages over 30 kg have a $45.00       │
+│ surcharge. Accept it? (No switches to express.)",                            │
+│                "requestedSchema": {                                          │
+│                   "type": "object",                                          │
+│                   "properties": {                                            │
+│                      "accept": {                                             │
+│                         "type": "boolean",                                   │
+│                         "title": "Accept surcharge",                         │
+│                         "default": true                                      │
+│                      }                                                       │
+│                   },                                                         │
+│                   "required": [                                              │
+│                      "accept"                                                │
+│                   ]                                                          │
+│                },                                                            │
+│                "_meta": {                                                    │
+│                   "mcp2dialog/dialogId": "01a13ccf3f96752886933f0105956630", │
+│                   "mcp2dialog/round": 3                                      │
+│                }                                                             │
+│             }                                                                │
+│          }                                                                   │
+│       },                                                                     │
+│       "requestState": "CfDJ8LRvpVpwGT1EhSP994Z-... (390 chars, encrypted by  │
+│ the server)",                                                                │
+│       "resultType": "input_required",                                        │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 5,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─Server needs more information dialog ...05956630 · round 3───────────────────┐
+│ Overnight packages over 30 kg have a $45.00 surcharge. Accept it? (No        │
+│ switches to express.)                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+  auto-answer accept = true
+┌─→ tools/call (retry with inputResponses + requestState)──────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: tools/call                                                       │
+│ Mcp-Name: get_shipping_quote                                                 │
+│ Mcp-Session-Id: none                                                         │
+│ {                                                                            │
+│    "method": "tools/call",                                                   │
+│    "params": {                                                               │
+│       "name": "get_shipping_quote",                                          │
+│       "arguments": {                                                         │
+│       },                                                                     │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-0258ce30cfd08549a91c607162bcba9c-309b05f5df59d9b0-01"                    │
+│       },                                                                     │
+│       "inputResponses": {                                                    │
+│          "surcharge": {                                                      │
+│             "action": "accept",                                              │
+│             "content": {                                                     │
+│                "accept": true                                                │
+│             }                                                                │
+│          }                                                                   │
+│       },                                                                     │
+│       "requestState": "CfDJ8LRvpVpwGT1EhSP994Z-... (390 chars, encrypted by  │
+│ the server)"                                                                 │
+│    },                                                                        │
+│    "id": 6,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 tools/call resultType: complete  server-b ─────────────────────────────┐
+│ X-Served-By:  server-b                                                       │
+│ {                                                                            │
+│    "result": {                                                               │
+│       "content": [                                                           │
+│          {                                                                   │
+│             "type": "text",                                                  │
+│             "text": "Quote for a 42 kg package to Oslo by overnight (next    │
+│ day): $305.80 including $45.00 heavy overnight surcharge. Dialog             │
+│ 01a13ccf3f96752886933f0105956630 completed in 4 round(s)."                   │
+│          }                                                                   │
+│       ],                                                                     │
+│       "resultType": "complete",                                              │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 6,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─Server answer────────────────────────────────────────────────────────────────┐
+│ Quote for a 42 kg package to Oslo by overnight (next day): $305.80 including │
+│ $45.00 heavy overnight surcharge. Dialog 01a13ccf3f96752886933f0105956630    │
+│ completed in 4 round(s).                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+╭──────────────────────────┬──────────────────────────────────╮
+│ tools/call HTTP requests │ 4                                │
+│ input_required results   │ 3                                │
+│ questions answered       │ 4                                │
+│ trace id                 │ 0258ce30cfd08549a91c607162bcba9c │
+╰──────────────────────────┴──────────────────────────────────╯
+            Which instance served each request             
+╭──────────┬──────┬─────────┬─────────┬─────────┬─────────╮
+│ discover │ list │ round 1 │ round 2 │ round 3 │ round 4 │
+├──────────┼──────┼─────────┼─────────┼─────────┼─────────┤
+│    A     │  B   │    A    │    B    │    A    │    B    │
+╰──────────┴──────┴─────────┴─────────┴─────────┴─────────╯
+╭───────────────────────┬─────────────────────────────╮
+│ requests per instance │  server-a  3    server-b  3 │
+│ sequence              │ A → B → A → B → A → B       │
+│ initialize sent       │ never                       │
+│ Mcp-Session-Id        │ none sent, none received    │
+│ MCP-Protocol-Version  │ 2026-07-28 on 6 of 6        │
+╰───────────────────────┴─────────────────────────────╯
+
+================================ gateway log ================================
+[18:46:15.037 INF] GET - → server-b 405 in 41 ms
+[18:46:17.371 INF] server/discover - → server-a 200 in 166 ms
+[18:46:17.557 INF] tools/list - → server-b 200 in 117 ms
+[18:46:17.690 INF] tools/call get_shipping_quote → server-a 200 in 85 ms
+[18:46:17.804 INF] tools/call get_shipping_quote → server-b 200 in 55 ms
+[18:46:17.856 INF] tools/call get_shipping_quote → server-a 200 in 14 ms
+[18:46:17.891 INF] tools/call get_shipping_quote → server-b 200 in 6 ms
+
+================================ server-a log ================================
+[18:46:13.681 INF] server-a Now listening on: http://localhost:5199 <Microsoft.Hosting.Lifetime> 
+[18:46:13.846 INF] server-a HTTP GET /mcp responded 405 in 0.5681 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 6b159a7ccaad34b682cbda14fe618574
+[18:46:17.327 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'server/discover' request handler called. <ModelContextProtocol.Server.McpServer> f118d29942f3257edc8af000f582af6a
+[18:46:17.366 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'server/discover' request handler completed in 11.5225ms. <ModelContextProtocol.Server.McpServer> f118d29942f3257edc8af000f582af6a
+[18:46:17.369 INF] server-a HTTP POST /mcp responded 200 in 159.5738 ms <Serilog.AspNetCore.RequestLoggingMiddleware> f118d29942f3257edc8af000f582af6a
+[18:46:17.609 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler called. <ModelContextProtocol.Server.McpServer> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.623 INF] server-a Dialog 01a13ccf3f96752886933f0105956630 round 1: new request (protocol 2026-07-28, MRTR supported: True) <Mcp2Dialog.Server.ShippingTools> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.637 INF] server-a Dialog 01a13ccf3f96752886933f0105956630 round 1: returning input_required for ["destination", "weight"] <Mcp2Dialog.Server.ShippingTools> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.690 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler completed in 80.894ms. <ModelContextProtocol.Server.McpServer> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.690 INF] server-a HTTP POST /mcp responded 200 in 83.8385 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.844 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler called. <ModelContextProtocol.Server.McpServer> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.848 INF] server-a Dialog 01a13ccf3f96752886933f0105956630 round 3: retry with requestState (protocol 2026-07-28, MRTR supported: True) <Mcp2Dialog.Server.ShippingTools> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.853 INF] server-a Dialog 01a13ccf3f96752886933f0105956630: input 'speed' came back as accept {"speed": "\"overnight\""} <Mcp2Dialog.Server.ShippingTools> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.856 INF] server-a Dialog 01a13ccf3f96752886933f0105956630 round 3: returning input_required for ["surcharge"] <Mcp2Dialog.Server.ShippingTools> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.856 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler completed in 12.0216ms. <ModelContextProtocol.Server.McpServer> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.856 INF] server-a HTTP POST /mcp responded 200 in 12.8138 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 0258ce30cfd08549a91c607162bcba9c
+
+================================ server-b log ================================
+[18:46:14.793 INF] server-b Now listening on: http://localhost:5200 <Microsoft.Hosting.Lifetime> 
+[18:46:14.935 INF] server-b HTTP GET /mcp responded 405 in 0.6449 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 9e6460eeb2cc3fdc581e9f1ee58644cd
+[18:46:15.028 INF] server-b HTTP GET /mcp responded 405 in 0.0196 ms <Serilog.AspNetCore.RequestLoggingMiddleware> a30ec545b7c3867eb78b8d8914d056c2
+[18:46:17.528 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/list' request handler called. <ModelContextProtocol.Server.McpServer> 5a333f0b33728f06a8fe298177439507
+[18:46:17.553 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/list' request handler completed in 21.9228ms. <ModelContextProtocol.Server.McpServer> 5a333f0b33728f06a8fe298177439507
+[18:46:17.556 INF] server-b HTTP POST /mcp responded 200 in 115.0504 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 5a333f0b33728f06a8fe298177439507
+[18:46:17.752 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler called. <ModelContextProtocol.Server.McpServer> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.781 INF] server-b Dialog 01a13ccf3f96752886933f0105956630 round 2: retry with requestState (protocol 2026-07-28, MRTR supported: True) <Mcp2Dialog.Server.ShippingTools> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.788 INF] server-b Dialog 01a13ccf3f96752886933f0105956630: input 'destination' came back as accept {"destination": "\"Oslo\""} <Mcp2Dialog.Server.ShippingTools> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.789 INF] server-b Dialog 01a13ccf3f96752886933f0105956630: input 'weight' came back as accept {"weightKg": "42"} <Mcp2Dialog.Server.ShippingTools> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.798 INF] server-b Dialog 01a13ccf3f96752886933f0105956630 round 2: returning input_required for ["speed"] <Mcp2Dialog.Server.ShippingTools> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.804 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler completed in 51.8624ms. <ModelContextProtocol.Server.McpServer> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.804 INF] server-b HTTP POST /mcp responded 200 in 53.7958 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.886 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler called. <ModelContextProtocol.Server.McpServer> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.887 INF] server-b Dialog 01a13ccf3f96752886933f0105956630 round 4: retry with requestState (protocol 2026-07-28, MRTR supported: True) <Mcp2Dialog.Server.ShippingTools> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.887 INF] server-b Dialog 01a13ccf3f96752886933f0105956630: input 'surcharge' came back as accept {"accept": "true"} <Mcp2Dialog.Server.ShippingTools> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.887 INF] server-b Dialog 01a13ccf3f96752886933f0105956630 finished as completed after 4 round(s) in 00:00:00.2651860 <Mcp2Dialog.Server.ShippingTools> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.890 INF] server-b "get_shipping_quote" completed. IsError = False. <ModelContextProtocol.Server.McpServer> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.891 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler completed in 4.8303ms. <ModelContextProtocol.Server.McpServer> 0258ce30cfd08549a91c607162bcba9c
+[18:46:17.891 INF] server-b HTTP POST /mcp responded 200 in 5.3996 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 0258ce30cfd08549a91c607162bcba9c

@@ -1,0 +1,26 @@
+Mcp2-Dialog scale-out demo: run3 - the server checks Mcp-Method / Mcp-Name against the body
+Captured:  2026-10-14 18:48:19 -0500 on RockyMini; commit 26e2178; server-a launch profile, called directly (no gateway)
+Body (same for every call): {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_shipping_quote","arguments":{"destination":"Rome","weightKg":3,"speed":"standard"},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"curl","version":"1"},"io.modelcontextprotocol/clientCapabilities":{"elicitation":{"form":{}}}}}}
+
+== headers match the body
+$ curl -s http://localhost:5199/mcp -H 'MCP-Protocol-Version: 2026-07-28' -H Mcp-Method: tools/call -H Mcp-Name: get_shipping_quote -d '<tools/call get_shipping_quote body>'
+event: message
+data: {"result":{"content":[{"type":"text","text":"Quote for a 3 kg package to Rome by standard (5-7 days): $13.25. Dialog 01a13cd11bfa7f3daddea25813a337c5 completed in 1 round(s)."}],"resultType":"complete","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"mcp2dialog-server","version":"1.0.0"}}},"id":1,"jsonrpc":"2.0"}
+
+
+HTTP 200
+
+== Mcp-Name lies
+$ curl -s http://localhost:5199/mcp -H 'MCP-Protocol-Version: 2026-07-28' -H Mcp-Method: tools/call -H Mcp-Name: delete_everything -d '<tools/call get_shipping_quote body>'
+{"error":{"code":-32020,"message":"Header mismatch: Mcp-Name header value \u0027delete_everything\u0027 does not match body value \u0027get_shipping_quote\u0027."},"id":1,"jsonrpc":"2.0"}
+HTTP 400
+
+== Mcp-Method lies
+$ curl -s http://localhost:5199/mcp -H 'MCP-Protocol-Version: 2026-07-28' -H Mcp-Method: tools/list -H Mcp-Name: get_shipping_quote -d '<tools/call get_shipping_quote body>'
+{"error":{"code":-32020,"message":"Header mismatch: Mcp-Method header value \u0027tools/list\u0027 does not match body value \u0027tools/call\u0027."},"id":1,"jsonrpc":"2.0"}
+HTTP 400
+
+== headers missing
+$ curl -s http://localhost:5199/mcp -H 'MCP-Protocol-Version: 2026-07-28'  -d '<tools/call get_shipping_quote body>'
+{"error":{"code":-32020,"message":"Missing required Mcp-Method header."},"id":1,"jsonrpc":"2.0"}
+HTTP 400

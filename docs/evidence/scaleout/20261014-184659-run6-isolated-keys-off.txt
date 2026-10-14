@@ -1,0 +1,112 @@
+Mcp2-Dialog scale-out demo: run6-isolated-keys-off
+Captured:  2026-10-14 18:46:54 -0500 on RockyMini (MINGW64_NT-10.0-26220)
+Commit:    26e2178 on demo/scaleout
+server-a:  dotnet run --project src/Mcp2Dialog.Server --launch-profile server-a -- --Otlp:Enabled=false 
+server-b:  dotnet run --project src/Mcp2Dialog.Server --launch-profile server-b -- --Otlp:Enabled=false 
+gateway:   dotnet run --project src/Mcp2Dialog.Gateway -- --Otlp:Enabled=false 
+agent:     dotnet run --project src/Mcp2Dialog.Agent -- quote --auto --scaleout --server http://localhost:5300/mcp --no-otlp
+Agent exit code 0, agent run took 1.5 s (including dotnet run startup)
+
+================================ agent console ================================
+  → server/discover     server-a  200 complete ttlMs=0 cacheScope=private
+┌─Connected────────────────────────────────────────────────────────────┐
+│ Server      mcp2dialog-server 1.0.0                                  │
+│ Protocol    2026-07-28                                               │
+│ Session id  (none: stateless, so requestState correlates the rounds) │
+└──────────────────────────────────────────────────────────────────────┘
+  → tools/list          server-b  200 complete ttlMs=300000 cacheScope=public
+Agent → get_shipping_quote {}
+  → tools/call round 1  server-a  200 input_required
+┌─Server needs more information dialog ...7ea863ba · round 1───────────────────┐
+│ Where is the package going?                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+  auto-answer destination = "Oslo"
+┌─Server needs more information dialog ...7ea863ba · round 1───────────────────┐
+│ How much does the package weigh?                                             │
+└──────────────────────────────────────────────────────────────────────────────┘
+  auto-answer weightKg = 42
+  → tools/call round 2  server-b  200 input_required
+┌─Server needs more information dialog ...7ea863ba · round 2───────────────────┐
+│ Shipping 42 kg to Oslo. Which service do you want?                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+  auto-answer speed = "overnight"
+  → tools/call round 3  server-a  200 input_required
+┌─Server needs more information dialog ...7ea863ba · round 3───────────────────┐
+│ Overnight packages over 30 kg have a $45.00 surcharge. Accept it? (No        │
+│ switches to express.)                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+  auto-answer accept = true
+  → tools/call round 4  server-b  200 complete
+┌─Server answer────────────────────────────────────────────────────────────────┐
+│ Quote for a 42 kg package to Oslo by overnight (next day): $305.80 including │
+│ $45.00 heavy overnight surcharge. Dialog 01a13ccfd4737e39b767b6bd7ea863ba    │
+│ completed in 4 round(s).                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+╭──────────────────────────┬──────────────────────────────────╮
+│ tools/call HTTP requests │ 4                                │
+│ input_required results   │ 3                                │
+│ questions answered       │ 4                                │
+│ trace id                 │ a1044e8a5e070df13720c86a49c6fed0 │
+╰──────────────────────────┴──────────────────────────────────╯
+            Which instance served each request             
+╭──────────┬──────┬─────────┬─────────┬─────────┬─────────╮
+│ discover │ list │ round 1 │ round 2 │ round 3 │ round 4 │
+├──────────┼──────┼─────────┼─────────┼─────────┼─────────┤
+│    A     │  B   │    A    │    B    │    A    │    B    │
+╰──────────┴──────┴─────────┴─────────┴─────────┴─────────╯
+╭───────────────────────┬─────────────────────────────╮
+│ requests per instance │  server-a  3    server-b  3 │
+│ sequence              │ A → B → A → B → A → B       │
+│ initialize sent       │ never                       │
+│ Mcp-Session-Id        │ none sent, none received    │
+│ MCP-Protocol-Version  │ 2026-07-28 on 6 of 6        │
+╰───────────────────────┴─────────────────────────────╯
+
+================================ gateway log ================================
+[18:46:53.364 INF] GET - → server-b 405 in 41 ms
+[18:46:55.521 INF] server/discover - → server-a 200 in 115 ms
+[18:46:55.699 INF] tools/list - → server-b 200 in 102 ms
+[18:46:55.755 INF] tools/call get_shipping_quote → server-a 200 in 39 ms
+[18:46:55.821 INF] tools/call get_shipping_quote → server-b 200 in 47 ms
+[18:46:55.837 INF] tools/call get_shipping_quote → server-a 200 in 13 ms
+[18:46:55.846 INF] tools/call get_shipping_quote → server-b 200 in 7 ms
+
+================================ server-a log ================================
+[18:46:52.113 INF] server-a Now listening on: http://localhost:5199 <Microsoft.Hosting.Lifetime> 
+[18:46:52.171 INF] server-a HTTP GET /mcp responded 405 in 0.6987 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 4b885817a9ffbbc8e5cbd8c64243d62e
+[18:46:55.503 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'server/discover' request handler called. <ModelContextProtocol.Server.McpServer> 5cc2d1538631ea689e470f5b38c78a01
+[18:46:55.516 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'server/discover' request handler completed in 9.8562ms. <ModelContextProtocol.Server.McpServer> 5cc2d1538631ea689e470f5b38c78a01
+[18:46:55.520 INF] server-a HTTP POST /mcp responded 200 in 108.7670 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 5cc2d1538631ea689e470f5b38c78a01
+[18:46:55.718 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler called. <ModelContextProtocol.Server.McpServer> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.731 INF] server-a Dialog 01a13ccfd4737e39b767b6bd7ea863ba round 1: new request (protocol 2026-07-28, MRTR supported: True) <Mcp2Dialog.Server.ShippingTools> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.743 INF] server-a Dialog 01a13ccfd4737e39b767b6bd7ea863ba round 1: returning input_required for ["destination", "weight"] <Mcp2Dialog.Server.ShippingTools> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.755 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler completed in 36.681ms. <ModelContextProtocol.Server.McpServer> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.755 INF] server-a HTTP POST /mcp responded 200 in 38.6277 ms <Serilog.AspNetCore.RequestLoggingMiddleware> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.824 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler called. <ModelContextProtocol.Server.McpServer> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.828 INF] server-a Dialog 01a13ccfd4737e39b767b6bd7ea863ba round 3: retry with requestState (protocol 2026-07-28, MRTR supported: True) <Mcp2Dialog.Server.ShippingTools> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.834 INF] server-a Dialog 01a13ccfd4737e39b767b6bd7ea863ba: input 'speed' came back as accept {"speed": "\"overnight\""} <Mcp2Dialog.Server.ShippingTools> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.836 INF] server-a Dialog 01a13ccfd4737e39b767b6bd7ea863ba round 3: returning input_required for ["surcharge"] <Mcp2Dialog.Server.ShippingTools> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.836 INF] server-a Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler completed in 11.7664ms. <ModelContextProtocol.Server.McpServer> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.836 INF] server-a HTTP POST /mcp responded 200 in 12.2560 ms <Serilog.AspNetCore.RequestLoggingMiddleware> a1044e8a5e070df13720c86a49c6fed0
+
+================================ server-b log ================================
+[18:46:53.075 INF] server-b Now listening on: http://localhost:5200 <Microsoft.Hosting.Lifetime> 
+[18:46:53.262 INF] server-b HTTP GET /mcp responded 405 in 0.5411 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 002246d90a0b409c45a344340627080c
+[18:46:53.354 INF] server-b HTTP GET /mcp responded 405 in 0.0177 ms <Serilog.AspNetCore.RequestLoggingMiddleware> 6a7fe66d6b0f6d6a111bd4736381f392
+[18:46:55.680 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/list' request handler called. <ModelContextProtocol.Server.McpServer> ab8a97c95d12e51ec68ab7bfbe265058
+[18:46:55.696 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/list' request handler completed in 13.6225ms. <ModelContextProtocol.Server.McpServer> ab8a97c95d12e51ec68ab7bfbe265058
+[18:46:55.699 INF] server-b HTTP POST /mcp responded 200 in 99.5518 ms <Serilog.AspNetCore.RequestLoggingMiddleware> ab8a97c95d12e51ec68ab7bfbe265058
+[18:46:55.776 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler called. <ModelContextProtocol.Server.McpServer> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.800 INF] server-b Dialog 01a13ccfd4737e39b767b6bd7ea863ba round 2: retry with requestState (protocol 2026-07-28, MRTR supported: True) <Mcp2Dialog.Server.ShippingTools> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.806 INF] server-b Dialog 01a13ccfd4737e39b767b6bd7ea863ba: input 'destination' came back as accept {"destination": "\"Oslo\""} <Mcp2Dialog.Server.ShippingTools> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.808 INF] server-b Dialog 01a13ccfd4737e39b767b6bd7ea863ba: input 'weight' came back as accept {"weightKg": "42"} <Mcp2Dialog.Server.ShippingTools> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.816 INF] server-b Dialog 01a13ccfd4737e39b767b6bd7ea863ba round 2: returning input_required for ["speed"] <Mcp2Dialog.Server.ShippingTools> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.821 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler completed in 44.4033ms. <ModelContextProtocol.Server.McpServer> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.821 INF] server-b HTTP POST /mcp responded 200 in 46.1896 ms <Serilog.AspNetCore.RequestLoggingMiddleware> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.841 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler called. <ModelContextProtocol.Server.McpServer> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.841 INF] server-b Dialog 01a13ccfd4737e39b767b6bd7ea863ba round 4: retry with requestState (protocol 2026-07-28, MRTR supported: True) <Mcp2Dialog.Server.ShippingTools> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.842 INF] server-b Dialog 01a13ccfd4737e39b767b6bd7ea863ba: input 'surcharge' came back as accept {"accept": "true"} <Mcp2Dialog.Server.ShippingTools> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.842 INF] server-b Dialog 01a13ccfd4737e39b767b6bd7ea863ba finished as completed after 4 round(s) in 00:00:00.1115180 <Mcp2Dialog.Server.ShippingTools> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.845 INF] server-b "get_shipping_quote" completed. IsError = False. <ModelContextProtocol.Server.McpServer> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.846 INF] server-b Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tools/call' request handler completed in 5.4468ms. <ModelContextProtocol.Server.McpServer> a1044e8a5e070df13720c86a49c6fed0
+[18:46:55.846 INF] server-b HTTP POST /mcp responded 200 in 5.9949 ms <Serilog.AspNetCore.RequestLoggingMiddleware> a1044e8a5e070df13720c86a49c6fed0

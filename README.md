@@ -8,6 +8,7 @@ This sample shows an MCP server saying "I need more information before I can ans
 | `src/Mcp2Dialog.Agent` | Spectre.Console CLI that connects to the server, calls the tool, and answers its questions |
 | `src/Mcp2Dialog.Telemetry` | Shared Serilog and OpenTelemetry setup, plus shared span and meta names |
 | `src/Mcp2Dialog.AppHost` | Aspire AppHost that runs the server and the dashboard, with the agent as an on-demand resource |
+| `src/Mcp2Dialog.Gateway` | YARP round-robin gateway for the [scale-out demo](#scale-out-demo-two-instances-no-sticky-sessions) |
 
 Everything targets .NET 10 (`global.json` pins SDK 10.0.401 with `latestFeature` roll-forward).
 
@@ -43,7 +44,7 @@ You need one, but in `2026-07-28` it isn't a transport session. That revision re
 **`requestState` is the correlation mechanism.** It's an opaque string the server mints, and the client must echo it back unchanged on the retry. In this sample:
 
 - `DialogState` (the dialog id, round number, start time, and answers so far) is serialized to JSON and protected with ASP.NET Core Data Protection, using a time-limited protector with a 10-minute lifetime (`DialogStateProtector`). The client can't read or forge it, and it expires.
-- The server keeps **nothing** in memory between rounds, so any server instance behind a load balancer can handle any round. (If you run multiple instances, they need a shared Data Protection key ring.)
+- The server keeps **nothing** in memory between rounds, so any server instance behind a load balancer can handle any round. (If you run multiple instances, they need a shared Data Protection key ring. The [scale-out demo](#scale-out-demo-two-instances-no-sticky-sessions) shows this.)
 - The dialog id (a v7 GUID) is also put in each elicitation's `_meta` (`mcp2dialog/dialogId`, `mcp2dialog/round`). The agent can show and log it, but the authoritative copy is the one inside `requestState`.
 - Both sides tag their spans with `mcp2dialog.dialog.id`. The server adds `DialogId` and `DialogRound` to every log event through a logging scope.
 
@@ -148,6 +149,53 @@ agent get_shipping_quote                         [agent]
 
 **More detail:** run the agent with `-v`, or raise `ModelContextProtocol` to `Debug` in `appsettings.json`, to see the SDK's own logs.
 
+## Scale-out demo: two instances, no sticky sessions
+
+This demo proves the server keeps nothing between rounds. Two copies of the server run behind a plain round-robin gateway with no session affinity. One dialog bounces between them and still completes, and it still completes if one instance is killed mid-dialog. It's additive: the original demo above is unchanged and still the default.
+
+```
+                                ┌──► server-a :5199 ─┐
+agent ──► gateway :5300/mcp ────┤  (round robin)     ├── shared key ring (.keyring/)
+          (YARP, no affinity)   └──► server-b :5200 ─┘
+```
+
+**The one prerequisite: a shared Data Protection key ring.** `requestState` is encrypted with Data Protection, so every instance must use the same application name and the same keys to decrypt a token another instance minted. The servers read `DataProtection:KeyRingPath`. The AppHost creates `.keyring/` at the repo root (git-ignored) and passes it to both. In production this would be a shared store, such as blob storage, Redis or a database, with the keys protected at rest. Set `Instance:IsolatedKeys=true` on one server to see what happens without it: the first round that changes instance fails with "The dialog state is invalid or has expired. Start a new quote."
+
+### Running it
+
+```bash
+dotnet run --project src/Mcp2Dialog.AppHost --launch-profile scaleout     # or: -- --Demo scaleout
+
+# From a terminal (the agent only talks to the gateway):
+dotnet run --project src/Mcp2Dialog.Agent -- quote --auto --scaleout --server http://localhost:5300/mcp
+dotnet run --project src/Mcp2Dialog.Agent -- quote --auto --scaleout --kill-after-round 1 --server http://localhost:5300/mcp
+```
+
+The **Resources** page shows `mcp2dialog-server-a`, `mcp2dialog-server-b`, `mcp2dialog-gateway`, and two explicit-start agents: `mcp2dialog-agent`, and `mcp2dialog-agent-kill`, which uses `--kill-after-round 1`. Each server row has a **Toggle isolated keys** command. Without Aspire, use the server's `server-a` and `server-b` launch profiles and `dotnet run --project src/Mcp2Dialog.Gateway`.
+
+`--scaleout` shows which instance (`X-Served-By`) handled each request, in one colour per instance. It also shows `Mcp-Session-Id: none` on each request, the `ttlMs`/`cacheScope` hints, and a summary with per-instance counts, the request sequence (`A → B → A → B`), and the `initialize`, session-id and protocol-version counts. All of those are counted from the HTTP traffic.
+
+The stage script is in [`docs/demo-scaleout-runbook.md`](docs/demo-scaleout-runbook.md). What the SDK provides and what this sample adds is in [`docs/scaleout-sdk-findings.md`](docs/scaleout-sdk-findings.md). Transcripts of real runs are in [`docs/evidence/scaleout/`](docs/evidence/scaleout/).
+
+### What's SDK-provided and what's hand-rolled
+
+| Piece | Source |
+|---|---|
+| No `initialize`, no `Mcp-Session-Id`, `server/discover`, `_meta` on every request | MCP C# SDK 2.2.0 (defaults) |
+| `Mcp-Method` / `Mcp-Name` headers, and the server rejecting headers that don't match the body | MCP C# SDK 2.2.0 |
+| `ttlMs` / `cacheScope` on `tools/list` | SDK wire support. The values (5 min, public) are set by this sample's list-tools filter. The SDK client doesn't cache. |
+| Round robin, no session affinity, streaming, trace propagation | YARP 2.3.0 |
+| **Hand-rolled:** retry when an instance refuses the connection (`RetryOnConnectFailure`) | YARP has no retry. This one only retries when the request was never sent. |
+| **Hand-rolled:** passive health policy that drops a refusing instance for 10 s | YARP's built-in policy needs 10+ requests before it acts |
+| **Hand-rolled:** one header-only log line per request, and the per-tool rate limit on `Mcp-Name` (`Gateway:RateLimit`, off by default, live-reloaded) | ASP.NET Core rate limiting does the counting. The partitioning on `Mcp-Name` is this sample's. |
+| **Hand-rolled:** instance stamping (`X-Served-By`, `mcp2dialog.instance`), `--kill-after-round` (`X-Served-By-Pid`, demo only), and the isolated-keys switch | This sample |
+
+### Things to expect
+
+- **The first request after a kill takes about 2 s on Windows.** That's how long Windows takes to report a refused connection on loopback. After that, the instance is out of rotation for 10 s, so later requests go straight to the survivor.
+- The server endpoints aren't proxied by Aspire (`isProxied: false`). A killed instance then really refuses connections, which is what the retry relies on.
+- With the standalone dashboard container from Option B running, two dashboards share 18888 and 4317. Stop the container before running the AppHost.
+
 ## Key code
 
 | File | What to read it for |
@@ -159,7 +207,13 @@ agent get_shipping_quote                         [agent]
 | `src/Mcp2Dialog.Agent/ElicitationPrompter.cs` | Turning elicitation schemas into Spectre prompts (or auto answers) |
 | `src/Mcp2Dialog.Agent/WireLoggingHandler.cs` | `DelegatingHandler` that shows the raw JSON-RPC traffic |
 | `src/Mcp2Dialog.Telemetry/TelemetryExtensions.cs` | Serilog (console + OTLP) and OpenTelemetry (traces + metrics) setup, respecting `OTEL_*` variables from a launcher |
-| `src/Mcp2Dialog.AppHost/AppHost.cs` | Aspire resources: the server, plus the agent as an explicit-start resource pointed at the server's endpoint |
+| `src/Mcp2Dialog.AppHost/AppHost.cs` | Picks the demo. `MrtrDemo.cs` holds the server plus the agent as an explicit-start resource pointed at the server's endpoint. `ScaleOutDemo.cs` holds two instances, the gateway, and two agents. |
+| `src/Mcp2Dialog.Server/DialogStateKeys.cs` | The shared key ring (and the isolated-keys switch) |
+| `src/Mcp2Dialog.Server/ServerInstance.cs` | Instance stamping: `X-Served-By`, the span tag, and the console prefix |
+| `src/Mcp2Dialog.Gateway/Program.cs` | The YARP pipeline: header-only log, retry, round robin, passive health, with no session affinity |
+| `src/Mcp2Dialog.Gateway/RetryOnConnectFailure.cs` | The hand-rolled retry and passive health policy |
+| `src/Mcp2Dialog.Gateway/ToolRateLimit.cs` | Header-based policy: a rate limit partitioned on `Mcp-Name` |
+| `src/Mcp2Dialog.Agent/ScaleoutView.cs` | The `--scaleout` view, the summary, and `--kill-after-round` |
 
 ## Packages
 
@@ -168,6 +222,7 @@ agent get_shipping_quote                         [agent]
 - `Serilog.AspNetCore`, `Serilog.Extensions.Hosting`, `Serilog.Sinks.Console`, `Serilog.Sinks.OpenTelemetry`
 - `OpenTelemetry.Extensions.Hosting`, OTLP exporter, ASP.NET Core / HttpClient / runtime instrumentation
 - `Spectre.Console`, `Spectre.Console.Cli`, `Spectre.Console.Json`
+- `Yarp.ReverseProxy` 2.3.0 (gateway for the scale-out demo only)
 - `Aspire.AppHost.Sdk` 13.6.0
 
 Versions are managed centrally in `Directory.Packages.props`.
