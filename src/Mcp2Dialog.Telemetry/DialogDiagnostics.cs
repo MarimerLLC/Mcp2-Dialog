@@ -25,6 +25,12 @@ public static class DialogDiagnostics
         public const string InputKeys = "mcp2dialog.dialog.input_keys";
         public const string Outcome = "mcp2dialog.dialog.outcome";
         public const string ToolName = "mcp2dialog.tool.name";
+
+        // Tasks extension demo (book_freight)
+        public const string TaskId = "mcp2dialog.task.id";
+        public const string TaskStatus = "mcp2dialog.task.status";
+        public const string TaskStage = "mcp2dialog.task.stage";
+        public const string TaskResumed = "mcp2dialog.task.resumed";
     }
 
     /// <summary>

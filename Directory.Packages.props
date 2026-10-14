@@ -6,6 +6,7 @@
     <!-- Model Context Protocol C# SDK (2026-07-28 spec, multi round-trip requests) -->
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
+    <PackageVersion Include="ModelContextProtocol.Extensions.Tasks" Version="2.2.0" />
 
     <!-- Microsoft.Extensions -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
