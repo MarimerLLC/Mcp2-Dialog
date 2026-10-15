@@ -181,14 +181,16 @@ internal sealed class BookCommand : AsyncCommand<BookSettings>
         var live = !settings.Wire && AnsiConsole.Profile.Capabilities.Interactive;
         var watcher = new TaskWatcher(session.Client, session.Prompter, state, settings.StateFile, live);
 
+        // Ctrl+C detaches: stop polling (or prompting), save, and leave the task running on the server.
+        using var detach = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.Stopping);
+
         TaskWatcher.Finished finished;
         try
         {
-            finished = await watcher.WatchAsync(pollIntervalMs, cancellationToken);
+            finished = await watcher.WatchAsync(pollIntervalMs, detach.Token);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (detach.IsCancellationRequested)
         {
-            // Ctrl+C detaches. The task keeps running on the server.
             state.ToolCallRequests += session.Stats.ToolCallRequests - toolCallsBefore;
             TaskStateFile.Save(settings.StateFile, state);
             AnsiConsole.MarkupLine($"\n[yellow]Detached from task {Markup.Escape(state.TaskId)}.[/] It keeps running on the server. " +

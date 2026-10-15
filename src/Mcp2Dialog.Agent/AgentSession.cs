@@ -27,6 +27,12 @@ internal sealed class AgentSession : IAsyncDisposable
     public DialogStats Stats => _host.Services.GetRequiredService<DialogStats>();
     public ElicitationPrompter Prompter => _host.Services.GetRequiredService<ElicitationPrompter>();
 
+    /// <summary>
+    /// Fires on Ctrl+C. The host's console lifetime handles Ctrl+C (and stops the process from exiting) by stopping
+    /// the application, so this is how a command notices it.
+    /// </summary>
+    public CancellationToken Stopping => _host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping;
+
     /// <param name="compactTaskPolls">With --wire, collapse tasks/get polls whose status didn't change into one line.</param>
     public static async Task<AgentSession> StartAsync(
         AgentSettings settings, bool autoAnswer, CancellationToken cancellationToken, bool compactTaskPolls = false)

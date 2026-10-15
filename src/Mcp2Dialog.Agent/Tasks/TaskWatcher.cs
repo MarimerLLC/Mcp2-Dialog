@@ -103,14 +103,17 @@ internal sealed class TaskWatcher(McpClient client, ElicitationPrompter prompter
     /// <summary>Why the task couldn't be found, as reported by the server.</summary>
     public string? Lost { get; private set; }
 
-    /// <summary>The same loop inside a Spectre live display that redraws the status panel on every poll.</summary>
+    /// <summary>
+    /// The same loop inside a Spectre live display that redraws the status panel on every poll. The panel clears
+    /// itself when the loop stops (so a question isn't shown under a stale status), and the final state is printed.
+    /// </summary>
     private async Task<GetTaskResult?> PollLiveAsync(CancellationToken cancellationToken)
     {
         GetTaskResult? last = null;
         var display = new Table().HideHeaders().Border(TableBorder.Rounded).AddColumn("").AddColumn("");
         GetTaskResult? result = null;
 
-        await AnsiConsole.Live(display).AutoClear(false).StartAsync(async context =>
+        await AnsiConsole.Live(display).AutoClear(true).StartAsync(async context =>
         {
             using var ticker = new PeriodicTimer(TimeSpan.FromMilliseconds(250));
             var poll = PollUntilActionAsync(task => last = task, cancellationToken);
@@ -122,9 +125,13 @@ internal sealed class TaskWatcher(McpClient client, ElicitationPrompter prompter
             }
 
             result = await poll;
-            Render(display, result);
-            context.Refresh();
         });
+
+        if (result is not null and not InputRequiredTaskResult)
+        {
+            Render(display, result);
+            AnsiConsole.Write(display);
+        }
 
         return result;
     }
