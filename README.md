@@ -4,7 +4,7 @@ This sample shows an MCP server saying "I need more information before I can ans
 
 | Project | What it is |
 |---|---|
-| `src/Mcp2Dialog.Server` | ASP.NET Core MCP server (stateless Streamable HTTP) with one tool, `get_shipping_quote` |
+| `src/Mcp2Dialog.Server` | ASP.NET Core MCP server (stateless Streamable HTTP) with `get_shipping_quote` (MRTR) and `book_freight` ([Tasks](#second-demo-the-tasks-extension-book_freight)) |
 | `src/Mcp2Dialog.Agent` | Spectre.Console CLI that connects to the server, calls the tool, and answers its questions |
 | `src/Mcp2Dialog.Telemetry` | Shared Serilog and OpenTelemetry setup, plus shared span and meta names |
 | `src/Mcp2Dialog.AppHost` | Aspire AppHost that runs the server and the dashboard, with the agent as an on-demand resource |
@@ -161,9 +161,87 @@ agent get_shipping_quote                         [agent]
 | `src/Mcp2Dialog.Telemetry/TelemetryExtensions.cs` | Serilog (console + OTLP) and OpenTelemetry (traces + metrics) setup, respecting `OTEL_*` variables from a launcher |
 | `src/Mcp2Dialog.AppHost/AppHost.cs` | Aspire resources: the server, plus the agent as an explicit-start resource pointed at the server's endpoint |
 
+## Second demo: the Tasks extension (`book_freight`)
+
+MRTR is for a question *before* a tool can answer. The **Tasks extension** (`io.modelcontextprotocol/tasks`) is for a
+tool that takes a while: the server answers `tools/call` with a **task handle** instead of a result, and the client
+polls for it. The handle is durable, so the client can go away and come back.
+
+This uses the SDK's own Tasks support (`ModelContextProtocol.Extensions.Tasks` 2.2.0): `WithTasks(store)` on the
+server, and `CallToolAsTaskAsync` / `GetTaskAsync` / `UpdateTaskAsync` / `CancelTaskAsync` on the client. The demo adds
+three small things the SDK doesn't have yet: `statusMessage` updates from the tool, a way for the tool to know its
+own task id, and picking tasks up again after a server restart. See [docs/tasks-sdk-findings.md](docs/tasks-sdk-findings.md).
+
+```
+Agent                                                          Server
+  │  tools/call book_freight  _meta: clientCapabilities         │
+  │                             .extensions["io.modelcontextprotocol/tasks"]
+  │ ──────────────────────────────────────────────────────────► │  task created (stored first), work starts in the background
+  │  ◄── resultType: "task"  taskId, status: working,           │
+  │                          ttlMs, pollIntervalMs              │
+  │  (task id saved to .demo/last-task.json)                    │
+  │  tasks/get {taskId}            (every pollIntervalMs)       │
+  │  ◄── working  "Reserving carrier capacity (2/5)"            │
+  │  ✂ agent killed … book --resume (no new tools/call)         │  …still working
+  │  tasks/get {taskId}                                         │
+  │  ◄── input_required  inputRequests: { <key>: elicitation }  │  ElicitAsync inside the task
+  │  tasks/update {taskId, inputResponses: { <key>: accept }}   │
+  │  ◄── {} (ack)                                               │
+  │  tasks/get … ◄── completed  result: { content: [...] }      │
+```
+
+- **Capability:** the client declares the extension on each request (`_meta`). The server decides per request whether
+  to make a task, and never returns one to a client that didn't declare it. It advertises the extension in
+  `server/discover`.
+- **Task store:** `ITaskStore` (the SDK's `IMcpTaskStore` plus `statusMessage` and saved work state). By default it's
+  in memory with a TTL (30 minutes). With `--Tasks:Store=file`, tasks go to `.demo/server-tasks/` under the server project and unfinished
+  bookings carry on after a server restart.
+- **Work:** about 40 seconds in five named stages (`--fast` makes it about 10). About halfway, the carrier "moves the
+  pickup window" and the task goes to `input_required` until the client answers. Declining or cancelling ends the
+  task as `cancelled`.
+- **Without the extension** (`book --no-tasks`), the server returns guidance text instead of a task.
+- **Errors:** an unknown or expired task id gets -32602. `tasks/*` without the capability gets -32021.
+- **Telemetry:** a span per task event (`task created`, `task progress`, `task input_required`, `task input received`,
+  `task completed` …) tagged `mcp2dialog.task.id`, a `TaskId` logging scope, and the metrics
+  `mcp2dialog.tasks.created`, `mcp2dialog.tasks.finished` (by status) and `mcp2dialog.tasks.duration`. The agent saves
+  the traceparent with the task id, so a resumed run continues **the same trace**.
+
+```bash
+# Book: one tools/call, then polls, one question, the result
+dotnet run --project src/Mcp2Dialog.Agent -- book --wire
+
+# Kill it (Ctrl+C, or Stop-Process -Force) part-way, then pick the same task up again
+dotnet run --project src/Mcp2Dialog.Agent -- book --resume --wire
+
+# Unattended, answers the question itself
+dotnet run --project src/Mcp2Dialog.Agent -- book --auto --wire
+
+# Cancel the saved task; resume a specific id; use another state file
+dotnet run --project src/Mcp2Dialog.Agent -- book --cancel
+dotnet run --project src/Mcp2Dialog.Agent -- book --resume 01a13c...
+dotnet run --project src/Mcp2Dialog.Agent -- book --state-file .demo/other.json
+
+# Server switches (standalone, or through the AppHost after --)
+dotnet run --project src/Mcp2Dialog.Server -- --fast --Tasks:Store=file
+dotnet run --project src/Mcp2Dialog.AppHost -- --Freight:Fast=true --Tasks:Store=file
+```
+
+The AppHost also has an explicit-start **mcp2dialog-agent-book** resource (`book --auto --wire`). The stage runbook,
+with the narration beats and fallbacks, is [docs/demo-tasks-runbook.md](docs/demo-tasks-runbook.md). Real transcripts
+and dashboard screenshots are in [docs/evidence/tasks/](docs/evidence/tasks/).
+
+| File | What to read it for |
+|---|---|
+| `src/Mcp2Dialog.Server/Program.cs` | `WithTasks(store, …)`, with only `book_freight` allowed to become a task |
+| `src/Mcp2Dialog.Server/Freight/FreightTools.cs` | The tool: guidance without the extension, otherwise the background booking |
+| `src/Mcp2Dialog.Server/Freight/FreightBooking.cs` | The stages, `statusMessage` updates, and the mid-flight `ElicitAsync` |
+| `src/Mcp2Dialog.Server/Tasks/` | `ITaskStore`, the in-memory and file stores, task telemetry, and `CurrentTask` (how the tool learns its task id) |
+| `src/Mcp2Dialog.Agent/Commands/BookCommand.cs` | Declaring the extension, handling both result shapes, saving the task id, `--resume` and `--cancel` |
+| `src/Mcp2Dialog.Agent/Tasks/TaskWatcher.cs` | The poll loop: `tasks/get` at `pollIntervalMs`, `inputRequests` → `tasks/update` |
+
 ## Packages
 
-- `ModelContextProtocol` / `ModelContextProtocol.AspNetCore` 2.2.0
+- `ModelContextProtocol` / `ModelContextProtocol.AspNetCore` / `ModelContextProtocol.Extensions.Tasks` 2.2.0
 - `Microsoft.Extensions.Hosting` / `Microsoft.Extensions.Http` 10.0.x
 - `Serilog.AspNetCore`, `Serilog.Extensions.Hosting`, `Serilog.Sinks.Console`, `Serilog.Sinks.OpenTelemetry`
 - `OpenTelemetry.Extensions.Hosting`, OTLP exporter, ASP.NET Core / HttpClient / runtime instrumentation
