@@ -1,0 +1,230 @@
+# Server: dotnet run --project src/Mcp2Dialog.Server -- --urls http://localhost:5299 (normal speed)
+# Part 1: start a booking, then hard-kill the agent
+# Recorded: 2026-10-14T19:21:35-05:00 on RockyMini, branch demo/tasks @ 014e099
+# Command: mcp2dialog-agent book --state-file .demo/cancel-task.json --server http://localhost:5299/mcp
+# Captured by redirecting stdout (non-TTY: Spectre renders without colour at 80 columns, no live display)
+
+┌─Connected────────────────────────────────────────────────────────────┐
+│ Server      mcp2dialog-server 1.0.0                                  │
+│ Protocol    2026-07-28                                               │
+│ Session id  (none: stateless, so requestState correlates the rounds) │
+└──────────────────────────────────────────────────────────────────────┘
+Agent → book_freight {} (declaring io.modelcontextprotocol/tasks)
+┌─Server returned a task handle────────────────────────────────────────────────┐
+│ task id 01a13cef94ba7d63b582c398db85e0b8  ·  ttl 30 min  ·  poll every 2000  │
+│ ms                                                                           │
+│ saved to S:\src\mcp2-dialog\.demo\cancel-task.json                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+  19:21:36 · 00:00 · poll 1  working  Validating shipment details (1/5)
+  19:21:40 · 00:04 · poll 3  working  Reserving carrier capacity (2/5)
+  19:21:48 · 00:12 · poll 7  working  Customs pre-clearance (3/5)
+  19:21:56 · 00:20 · poll 11  input_required  Waiting for you: carrier moved 
+pickup to 18:00-20:00
+┌─Server needs more information────────────────────────────────────────────────┐
+│ The carrier moved the pickup window to 18:00-20:00 today. Accept the new     │
+│ window? (No cancels the booking.)                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+Error: Cannot show selection prompt since the current terminal isn't 
+interactive.
+# >>> 2026-10-14T19:21:57-05:00: 
+
+# Part 2: cancel the saved task (tasks/cancel)
+# Recorded: 2026-10-14T19:21:57-05:00 on RockyMini, branch demo/tasks @ 014e099
+# Command: mcp2dialog-agent book --cancel --wire --state-file .demo/cancel-task.json --server http://localhost:5299/mcp
+# Captured by redirecting stdout (non-TTY: Spectre renders without colour at 80 columns, no live display)
+
+┌─→ server/discover────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: server/discover                                                  │
+│ {                                                                            │
+│    "method": "server/discover",                                              │
+│    "params": {                                                               │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-f77ffc20754a4f73fd8d6319e027c32b-cf3b64adb338751b-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 1,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 server/discover resultType: complete───────────────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "supportedVersions": [                                                 │
+│          "2026-07-28"                                                        │
+│       ],                                                                     │
+│       "capabilities": {                                                      │
+│          "logging": {                                                        │
+│          },                                                                  │
+│          "tools": {                                                          │
+│          },                                                                  │
+│          "extensions": {                                                     │
+│             "io.modelcontextprotocol/tasks": {                               │
+│             }                                                                │
+│          }                                                                   │
+│       },                                                                     │
+│       "ttlMs": 0,                                                            │
+│       "cacheScope": "private",                                               │
+│       "resultType": "complete",                                              │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 1,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─Connected────────────────────────────────────────────────────────────┐
+│ Server      mcp2dialog-server 1.0.0                                  │
+│ Protocol    2026-07-28                                               │
+│ Session id  (none: stateless, so requestState correlates the rounds) │
+└──────────────────────────────────────────────────────────────────────┘
+┌─→ tasks/cancel───────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: tasks/cancel                                                     │
+│ Mcp-Name: 01a13cef94ba7d63b582c398db85e0b8                                   │
+│ {                                                                            │
+│    "method": "tasks/cancel",                                                 │
+│    "params": {                                                               │
+│       "taskId": "01a13cef94ba7d63b582c398db85e0b8",                          │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "extensions": {                                                  │
+│                "io.modelcontextprotocol/tasks": {                            │
+│                }                                                             │
+│             },                                                               │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-001a1ec15e4226547522b027502b5d76-eeb861fc59b9901b-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 2,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 tasks/cancel resultType: complete──────────────────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "resultType": "complete",                                              │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 2,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─→ tasks/get──────────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: tasks/get                                                        │
+│ Mcp-Name: 01a13cef94ba7d63b582c398db85e0b8                                   │
+│ {                                                                            │
+│    "method": "tasks/get",                                                    │
+│    "params": {                                                               │
+│       "taskId": "01a13cef94ba7d63b582c398db85e0b8",                          │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "extensions": {                                                  │
+│                "io.modelcontextprotocol/tasks": {                            │
+│                }                                                             │
+│             },                                                               │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-001a1ec15e4226547522b027502b5d76-937e5416f764d803-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 3,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 tasks/get resultType: complete status: cancelled───────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "resultType": "complete",                                              │
+│       "taskId": "01a13cef94ba7d63b582c398db85e0b8",                          │
+│       "status": "cancelled",                                                 │
+│       "statusMessage": "Cancelled by the client (tasks/cancel)",             │
+│       "createdAt": "2026-10-15T00:21:36.5702557\u002B00:00",                 │
+│       "lastUpdatedAt": "2026-10-15T00:21:58.4088871\u002B00:00",             │
+│       "ttlMs": 1800000,                                                      │
+│       "pollIntervalMs": 2000,                                                │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 3,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─tasks/cancel acknowledged────────────────────────────────────────────────────┐
+│ Status now: cancelled. Cancelled by the client (tasks/cancel)                │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+# exit code: 0   wall clock: 1 s   finished: 2026-10-14T19:21:58-05:00
+
+# Part 3: resume the cancelled task: it reports cancelled cleanly
+# Recorded: 2026-10-14T19:21:58-05:00 on RockyMini, branch demo/tasks @ 014e099
+# Command: mcp2dialog-agent book --resume --state-file .demo/cancel-task.json --server http://localhost:5299/mcp
+# Captured by redirecting stdout (non-TTY: Spectre renders without colour at 80 columns, no live display)
+
+┌─Connected────────────────────────────────────────────────────────────┐
+│ Server      mcp2dialog-server 1.0.0                                  │
+│ Protocol    2026-07-28                                               │
+│ Session id  (none: stateless, so requestState correlates the rounds) │
+└──────────────────────────────────────────────────────────────────────┘
+── Resuming task 01a13cef94ba7d63b582c398db85e0b8 (no new tools/call) ──────────
+  19:21:59 · 00:22 · poll 12  cancelled  Cancelled by the client (tasks/cancel)
+┌─Task cancelled───────────────────────────────────────────────────────────────┐
+│ Cancelled by the client (tasks/cancel)                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+╭───────────────────────────────┬──────────────────────────────────────╮
+│ tools/call requests           │ 1 (across 2 agent runs)              │
+│ task id                       │ 01a13cef94ba7d63b582c398db85e0b8     │
+│ tasks/get polls               │ 12                                   │
+│ tasks/update requests         │ 0                                    │
+│ status transitions            │ working → input_required → cancelled │
+│ questions answered (this run) │ 0                                    │
+│ trace id                      │ fe68afbaff1ea14b13e46ba2d430b45f     │
+╰───────────────────────────────┴──────────────────────────────────────╯
+
+# exit code: 1   wall clock: 1 s   finished: 2026-10-14T19:21:59-05:00
+

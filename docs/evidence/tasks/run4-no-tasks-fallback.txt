@@ -1,0 +1,140 @@
+# Server: dotnet run --project src/Mcp2Dialog.Server -- --urls http://localhost:5299 --Otlp:Endpoint=http://localhost:4327  (in-memory store, normal speed)
+# Evidence for acceptance criterion 4: the client does NOT declare the Tasks extension (hidden --no-tasks flag)
+# Recorded: 2026-10-14T19:19:16-05:00 on RockyMini, branch demo/tasks @ 014e099
+# Command: mcp2dialog-agent book --no-tasks --wire --server http://localhost:5299/mcp
+# Captured by redirecting stdout (non-TTY: Spectre renders without colour at 80 columns, no live display)
+
+┌─→ server/discover────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: server/discover                                                  │
+│ {                                                                            │
+│    "method": "server/discover",                                              │
+│    "params": {                                                               │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-24d00237c19f5409efaa37a6b670fd7e-dba9342e16fdab1c-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 1,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 server/discover resultType: complete───────────────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "supportedVersions": [                                                 │
+│          "2026-07-28"                                                        │
+│       ],                                                                     │
+│       "capabilities": {                                                      │
+│          "logging": {                                                        │
+│          },                                                                  │
+│          "tools": {                                                          │
+│          },                                                                  │
+│          "extensions": {                                                     │
+│             "io.modelcontextprotocol/tasks": {                               │
+│             }                                                                │
+│          }                                                                   │
+│       },                                                                     │
+│       "ttlMs": 0,                                                            │
+│       "cacheScope": "private",                                               │
+│       "resultType": "complete",                                              │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 1,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─Connected────────────────────────────────────────────────────────────┐
+│ Server      mcp2dialog-server 1.0.0                                  │
+│ Protocol    2026-07-28                                               │
+│ Session id  (none: stateless, so requestState correlates the rounds) │
+└──────────────────────────────────────────────────────────────────────┘
+  ↔ tools/list · book_freight, get_shipping_quote (schemas hidden)
+Agent → book_freight {} (without the Tasks extension)
+┌─→ tools/call─────────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: tools/call                                                       │
+│ Mcp-Name: book_freight                                                       │
+│ {                                                                            │
+│    "method": "tools/call",                                                   │
+│    "params": {                                                               │
+│       "name": "book_freight",                                                │
+│       "arguments": {                                                         │
+│       },                                                                     │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-9089316e6be9721ad3f009537bfd7a8c-1f7d3d4718e49056-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 3,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 tools/call resultType: complete────────────────────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "content": [                                                           │
+│          {                                                                   │
+│             "type": "text",                                                  │
+│             "text": "book_freight needs the MCP Tasks extension. Booking     │
+│ takes about 40 seconds and asks a question part-way through, so it only runs │
+│ as a task. Call it again from a client that declares                         │
+│ \u0027io.modelcontextprotocol/tasks\u0027 in the request\u0027s _meta        │
+│ (io.modelcontextprotocol/clientCapabilities \u2192 extensions), then poll    │
+│ tasks/get for the result."                                                   │
+│          }                                                                   │
+│       ],                                                                     │
+│       "resultType": "complete",                                              │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 3,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─Server answer (no task)──────────────────────────────────────────────────────┐
+│ book_freight needs the MCP Tasks extension. Booking takes about 40 seconds   │
+│ and asks a question part-way through, so it only runs as a task. Call it     │
+│ again from a client that declares 'io.modelcontextprotocol/tasks' in the     │
+│ request's _meta (io.modelcontextprotocol/clientCapabilities → extensions),   │
+│ then poll tasks/get for the result.                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+╭───────────────────────────────┬──────────────────────────────────╮
+│ tools/call requests           │ 1                                │
+│ questions answered (this run) │ 0                                │
+│ trace id                      │ 9089316e6be9721ad3f009537bfd7a8c │
+╰───────────────────────────────┴──────────────────────────────────╯
+
+# exit code: 0   wall clock: 1 s   finished: 2026-10-14T19:19:17-05:00
+

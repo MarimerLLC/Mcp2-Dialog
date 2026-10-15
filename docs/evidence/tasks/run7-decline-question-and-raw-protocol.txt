@@ -1,0 +1,38 @@
+# Evidence: raw JSON-RPC over HTTP with curl (no SDK client). Declining the mid-flight question ends the task as
+# cancelled with a clear statusMessage. Also: server/discover advertises the extension; tasks/get without the capability
+# gets -32021. Recorded: 2026-10-14T19:22:13-05:00 on RockyMini, branch demo/tasks @ 014e099
+# Server: dotnet run --project src/Mcp2Dialog.Server -- --urls http://localhost:5299 (normal speed)
+
+→ server/discover   (Mcp-Name: )
+{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}
+←
+{"result":{"supportedVersions":["2026-07-28"],"capabilities":{"logging":{},"tools":{},"extensions":{"io.modelcontextprotocol/tasks":{}}},"ttlMs":0,"cacheScope":"private","resultType":"complete","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"mcp2dialog-server","version":"1.0.0"}}},"id":1,"jsonrpc":"2.0"}
+
+→ tools/call   (Mcp-Name: book_freight)
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"book_freight","arguments":{},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{"extensions":{"io.modelcontextprotocol/tasks":{}}}}}}
+←
+{"result":{"taskId":"01a13cf026a77febaa98f4e0ab0a21dd","status":"working","statusMessage":"Accepted, starting work","createdAt":"2026-10-15T00:22:13.9275338\u002B00:00","lastUpdatedAt":"2026-10-15T00:22:13.9275338\u002B00:00","ttlMs":1800000,"pollIntervalMs":2000,"resultType":"task","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"mcp2dialog-server","version":"1.0.0"}}},"id":2,"jsonrpc":"2.0"}
+
+→ tasks/get, polled every 1 s until input_required (19 polls); last answer:
+{"result":{"resultType":"complete","taskId":"01a13cf026a77febaa98f4e0ab0a21dd","status":"input_required","statusMessage":"Waiting for you: carrier moved pickup to 18:00-20:00","createdAt":"2026-10-15T00:22:13.9275338\u002B00:00","lastUpdatedAt":"2026-10-15T00:22:33.9283849\u002B00:00","ttlMs":1800000,"pollIntervalMs":2000,"inputRequests":{"fcb1a3b5618141e6ba9babe21d5614ab":{"method":"elicitation/create","params":{"mode":"form","message":"The carrier moved the pickup window to 18:00-20:00 today. Accept the new window? (No cancels the booking.)","requestedSchema":{"type":"object","properties":{"accept":{"type":"boolean","title":"Accept pickup 18:00-20:00","default":true}},"required":["accept"]}}}},"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"mcp2dialog-server","version":"1.0.0"}}},"id":3,"jsonrpc":"2.0"}
+
+→ tasks/update   (Mcp-Name: 01a13cf026a77febaa98f4e0ab0a21dd)
+{"jsonrpc":"2.0","id":4,"method":"tasks/update","params":{"taskId":"01a13cf026a77febaa98f4e0ab0a21dd","inputResponses":{"fcb1a3b5618141e6ba9babe21d5614ab":{"action":"decline"}},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{"extensions":{"io.modelcontextprotocol/tasks":{}}}}}}
+←
+{"result":{"resultType":"complete","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"mcp2dialog-server","version":"1.0.0"}}},"id":4,"jsonrpc":"2.0"}
+
+→ tasks/get   (Mcp-Name: 01a13cf026a77febaa98f4e0ab0a21dd)
+{"jsonrpc":"2.0","id":5,"method":"tasks/get","params":{"taskId":"01a13cf026a77febaa98f4e0ab0a21dd","_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{"extensions":{"io.modelcontextprotocol/tasks":{}}}}}}
+←
+{"result":{"resultType":"complete","taskId":"01a13cf026a77febaa98f4e0ab0a21dd","status":"cancelled","statusMessage":"Booking cancelled: the new pickup window was not accepted.","createdAt":"2026-10-15T00:22:13.9275338\u002B00:00","lastUpdatedAt":"2026-10-15T00:22:34.8579491\u002B00:00","ttlMs":1800000,"pollIntervalMs":2000,"_meta":{"io.modelcontextprotocol/serverInfo":{"name":"mcp2dialog-server","version":"1.0.0"}}},"id":5,"jsonrpc":"2.0"}
+
+→ tasks/get   (Mcp-Name: 01a13cf026a77febaa98f4e0ab0a21dd)
+{"jsonrpc":"2.0","id":6,"method":"tasks/get","params":{"taskId":"01a13cf026a77febaa98f4e0ab0a21dd","_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}
+←
+{"error":{"code":-32021,"message":"The request requires the \u0027io.modelcontextprotocol/tasks\u0027 client extension capability.","data":{"requiredCapabilities":{"extensions":{"io.modelcontextprotocol/tasks":{}}}}},"id":6,"jsonrpc":"2.0"}
+
+→ tasks/cancel   (Mcp-Name: nope)
+{"jsonrpc":"2.0","id":7,"method":"tasks/cancel","params":{"taskId":"nope","_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{"extensions":{"io.modelcontextprotocol/tasks":{}}}}}}
+←
+{"error":{"code":-32602,"message":"Task not found: \u0027nope\u0027"},"id":7,"jsonrpc":"2.0"}
+

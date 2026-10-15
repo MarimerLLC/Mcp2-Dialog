@@ -1,0 +1,575 @@
+# Evidence for acceptance criterion 3: kill the agent mid-task, then resume from the saved task id
+# Server: dotnet run --project src/Mcp2Dialog.Server -- --urls http://localhost:5299 --Otlp:Endpoint=http://localhost:4327  (in-memory store, normal speed)
+# Part 1 runs WITHOUT --auto (captured without a TTY, so the agent is killed before the question).
+# The agent is hard-killed with Stop-Process -Force (TerminateProcess, the Windows kill -9) once a poll shows stage 2.
+
+# Part 1: start booking, then hard-kill the agent
+# Recorded: 2026-10-14T19:18:35-05:00 on RockyMini, branch demo/tasks @ 014e099
+# Command: mcp2dialog-agent book --wire --server http://localhost:5299/mcp
+# Captured by redirecting stdout (non-TTY: Spectre renders without colour at 80 columns, no live display)
+
+┌─→ server/discover────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: server/discover                                                  │
+│ {                                                                            │
+│    "method": "server/discover",                                              │
+│    "params": {                                                               │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-42d73b6b4fb496ad951705bea15872f0-72db802c2a65443b-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 1,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 server/discover resultType: complete───────────────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "supportedVersions": [                                                 │
+│          "2026-07-28"                                                        │
+│       ],                                                                     │
+│       "capabilities": {                                                      │
+│          "logging": {                                                        │
+│          },                                                                  │
+│          "tools": {                                                          │
+│          },                                                                  │
+│          "extensions": {                                                     │
+│             "io.modelcontextprotocol/tasks": {                               │
+│             }                                                                │
+│          }                                                                   │
+│       },                                                                     │
+│       "ttlMs": 0,                                                            │
+│       "cacheScope": "private",                                               │
+│       "resultType": "complete",                                              │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 1,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─Connected────────────────────────────────────────────────────────────┐
+│ Server      mcp2dialog-server 1.0.0                                  │
+│ Protocol    2026-07-28                                               │
+│ Session id  (none: stateless, so requestState correlates the rounds) │
+└──────────────────────────────────────────────────────────────────────┘
+  ↔ tools/list · book_freight, get_shipping_quote (schemas hidden)
+Agent → book_freight {} (declaring io.modelcontextprotocol/tasks)
+┌─→ tools/call─────────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: tools/call                                                       │
+│ Mcp-Name: book_freight                                                       │
+│ {                                                                            │
+│    "method": "tools/call",                                                   │
+│    "params": {                                                               │
+│       "name": "book_freight",                                                │
+│       "arguments": {                                                         │
+│       },                                                                     │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "extensions": {                                                  │
+│                "io.modelcontextprotocol/tasks": {                            │
+│                }                                                             │
+│             },                                                               │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-b48191aa25e94b5c37c19544e44bc691-991d4a151280442b-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 3,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 tools/call resultType: task status: working────────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "taskId": "01a13cecd2a7768b83232f19a7be0ed2",                          │
+│       "status": "working",                                                   │
+│       "statusMessage": "Accepted, starting work",                            │
+│       "createdAt": "2026-10-15T00:18:35.8151179\u002B00:00",                 │
+│       "lastUpdatedAt": "2026-10-15T00:18:35.8151179\u002B00:00",             │
+│       "ttlMs": 1800000,                                                      │
+│       "pollIntervalMs": 2000,                                                │
+│       "resultType": "task",                                                  │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 3,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─Server returned a task handle────────────────────────────────────────────────┐
+│ task id 01a13cecd2a7768b83232f19a7be0ed2  ·  ttl 30 min  ·  poll every 2000  │
+│ ms                                                                           │
+│ saved to S:\src\mcp2-dialog\.demo\last-task.json                             │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─→ tasks/get──────────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: tasks/get                                                        │
+│ Mcp-Name: 01a13cecd2a7768b83232f19a7be0ed2                                   │
+│ {                                                                            │
+│    "method": "tasks/get",                                                    │
+│    "params": {                                                               │
+│       "taskId": "01a13cecd2a7768b83232f19a7be0ed2",                          │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "extensions": {                                                  │
+│                "io.modelcontextprotocol/tasks": {                            │
+│                }                                                             │
+│             },                                                               │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-b48191aa25e94b5c37c19544e44bc691-0ad3c6fbc8b910b1-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 4,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 tasks/get resultType: complete status: working─────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "resultType": "complete",                                              │
+│       "taskId": "01a13cecd2a7768b83232f19a7be0ed2",                          │
+│       "status": "working",                                                   │
+│       "statusMessage": "Validating shipment details (1/5)",                  │
+│       "createdAt": "2026-10-15T00:18:35.8151179\u002B00:00",                 │
+│       "lastUpdatedAt": "2026-10-15T00:18:35.8156825\u002B00:00",             │
+│       "ttlMs": 1800000,                                                      │
+│       "pollIntervalMs": 2000,                                                │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 4,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+  19:18:35 · 00:00 · poll 1  working  Validating shipment details (1/5)
+  ↔ tasks/get · working · Validating shipment details (1/5) (unchanged)
+→ tasks/get Mcp-Name: 01a13cecd2a7768b83232f19a7be0ed2
+┌─← 200 tasks/get resultType: complete status: working─────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "resultType": "complete",                                              │
+│       "taskId": "01a13cecd2a7768b83232f19a7be0ed2",                          │
+│       "status": "working",                                                   │
+│       "statusMessage": "Reserving carrier capacity (2/5)",                   │
+│       "createdAt": "2026-10-15T00:18:35.8151179\u002B00:00",                 │
+│       "lastUpdatedAt": "2026-10-15T00:18:39.8159784\u002B00:00",             │
+│       "ttlMs": 1800000,                                                      │
+│       "pollIntervalMs": 2000,                                                │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 6,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+  19:18:39 · 00:04 · poll 3  working  Reserving carrier capacity (2/5)
+  ↔ tasks/get · working · Reserving carrier capacity (2/5) (unchanged)
+
+# >>> 2026-10-14T19:18:42-05:00: killed agent 18720 (hard kill: no shutdown code ran)
+
+# State file left behind (.demo/last-task.json):
+{
+  "TaskId": "01a13cecd2a7768b83232f19a7be0ed2",
+  "Server": "http://localhost:5299/mcp",
+  "CreatedAt": "2026-10-15T00:18:35.8151179+00:00",
+  "TraceParent": "00-b48191aa25e94b5c37c19544e44bc691-c29efd59ee538dd1-01",
+  "Runs": 1,
+  "ToolCallRequests": 1,
+  "Polls": 4,
+  "Updates": 0,
+  "Transitions": [
+    "working"
+  ],
+  "LastStatus": "working"
+}
+
+# Part 2: resume from the state file (no new tools/call)
+# Recorded: 2026-10-14T19:18:47-05:00 on RockyMini, branch demo/tasks @ 014e099
+# Command: mcp2dialog-agent book --resume --auto --wire --server http://localhost:5299/mcp
+# Captured by redirecting stdout (non-TTY: Spectre renders without colour at 80 columns, no live display)
+
+┌─→ server/discover────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: server/discover                                                  │
+│ {                                                                            │
+│    "method": "server/discover",                                              │
+│    "params": {                                                               │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-2de7ac04f0838874143224b26af3a140-b72fdca6dcaffef2-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 1,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 server/discover resultType: complete───────────────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "supportedVersions": [                                                 │
+│          "2026-07-28"                                                        │
+│       ],                                                                     │
+│       "capabilities": {                                                      │
+│          "logging": {                                                        │
+│          },                                                                  │
+│          "tools": {                                                          │
+│          },                                                                  │
+│          "extensions": {                                                     │
+│             "io.modelcontextprotocol/tasks": {                               │
+│             }                                                                │
+│          }                                                                   │
+│       },                                                                     │
+│       "ttlMs": 0,                                                            │
+│       "cacheScope": "private",                                               │
+│       "resultType": "complete",                                              │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 1,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─Connected────────────────────────────────────────────────────────────┐
+│ Server      mcp2dialog-server 1.0.0                                  │
+│ Protocol    2026-07-28                                               │
+│ Session id  (none: stateless, so requestState correlates the rounds) │
+└──────────────────────────────────────────────────────────────────────┘
+── Resuming task 01a13cecd2a7768b83232f19a7be0ed2 (no new tools/call) ──────────
+┌─→ tasks/get──────────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: tasks/get                                                        │
+│ Mcp-Name: 01a13cecd2a7768b83232f19a7be0ed2                                   │
+│ {                                                                            │
+│    "method": "tasks/get",                                                    │
+│    "params": {                                                               │
+│       "taskId": "01a13cecd2a7768b83232f19a7be0ed2",                          │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "extensions": {                                                  │
+│                "io.modelcontextprotocol/tasks": {                            │
+│                }                                                             │
+│             },                                                               │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-b48191aa25e94b5c37c19544e44bc691-28b8f7272ee90685-01"                    │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 2,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 tasks/get resultType: complete status: working─────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "resultType": "complete",                                              │
+│       "taskId": "01a13cecd2a7768b83232f19a7be0ed2",                          │
+│       "status": "working",                                                   │
+│       "statusMessage": "Customs pre-clearance (3/5)",                        │
+│       "createdAt": "2026-10-15T00:18:35.8151179\u002B00:00",                 │
+│       "lastUpdatedAt": "2026-10-15T00:18:47.817121\u002B00:00",              │
+│       "ttlMs": 1800000,                                                      │
+│       "pollIntervalMs": 2000,                                                │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 2,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+  19:18:48 · 00:12 · poll 5  working  Customs pre-clearance (3/5)
+  ↔ tasks/get · working · Customs pre-clearance (3/5) (unchanged)
+  ↔ tasks/get · working · Customs pre-clearance (3/5) (unchanged)
+  ↔ tasks/get · working · Customs pre-clearance (3/5) (unchanged)
+→ tasks/get Mcp-Name: 01a13cecd2a7768b83232f19a7be0ed2
+┌─← 200 tasks/get resultType: complete status: input_required──────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "resultType": "complete",                                              │
+│       "taskId": "01a13cecd2a7768b83232f19a7be0ed2",                          │
+│       "status": "input_required",                                            │
+│       "statusMessage": "Waiting for you: carrier moved pickup to             │
+│ 18:00-20:00",                                                                │
+│       "createdAt": "2026-10-15T00:18:35.8151179\u002B00:00",                 │
+│       "lastUpdatedAt": "2026-10-15T00:18:55.817536\u002B00:00",              │
+│       "ttlMs": 1800000,                                                      │
+│       "pollIntervalMs": 2000,                                                │
+│       "inputRequests": {                                                     │
+│          "c4367fa092f04dab93caf2bb3e334d80": {                               │
+│             "method": "elicitation/create",                                  │
+│             "params": {                                                      │
+│                "mode": "form",                                               │
+│                "message": "The carrier moved the pickup window to            │
+│ 18:00-20:00 today. Accept the new window? (No cancels the booking.)",        │
+│                "requestedSchema": {                                          │
+│                   "type": "object",                                          │
+│                   "properties": {                                            │
+│                      "accept": {                                             │
+│                         "type": "boolean",                                   │
+│                         "title": "Accept pickup 18:00-20:00",                │
+│                         "default": true                                      │
+│                      }                                                       │
+│                   },                                                         │
+│                   "required": [                                              │
+│                      "accept"                                                │
+│                   ]                                                          │
+│                }                                                             │
+│             }                                                                │
+│          }                                                                   │
+│       },                                                                     │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 6,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+  19:18:56 · 00:20 · poll 9  input_required  Waiting for you: carrier moved 
+pickup to 18:00-20:00
+┌─Server needs more information────────────────────────────────────────────────┐
+│ The carrier moved the pickup window to 18:00-20:00 today. Accept the new     │
+│ window? (No cancels the booking.)                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+  auto-answer accept = true
+┌─→ tasks/update───────────────────────────────────────────────────────────────┐
+│ MCP-Protocol-Version: 2026-07-28                                             │
+│ Mcp-Method: tasks/update                                                     │
+│ Mcp-Name: 01a13cecd2a7768b83232f19a7be0ed2                                   │
+│ {                                                                            │
+│    "method": "tasks/update",                                                 │
+│    "params": {                                                               │
+│       "taskId": "01a13cecd2a7768b83232f19a7be0ed2",                          │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/clientCapabilities": {                     │
+│             "extensions": {                                                  │
+│                "io.modelcontextprotocol/tasks": {                            │
+│                }                                                             │
+│             },                                                               │
+│             "elicitation": {                                                 │
+│                "form": {                                                     │
+│                }                                                             │
+│             }                                                                │
+│          },                                                                  │
+│          "io.modelcontextprotocol/protocolVersion": "2026-07-28",            │
+│          "io.modelcontextprotocol/clientInfo": {                             │
+│             "name": "mcp2dialog-agent",                                      │
+│             "version": "1.0.0"                                               │
+│          },                                                                  │
+│          "traceparent":                                                      │
+│ "00-b48191aa25e94b5c37c19544e44bc691-4b30af6f68a2391b-01"                    │
+│       },                                                                     │
+│       "inputResponses": {                                                    │
+│          "c4367fa092f04dab93caf2bb3e334d80": {                               │
+│             "action": "accept",                                              │
+│             "content": {                                                     │
+│                "accept": true                                                │
+│             }                                                                │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 7,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌─← 200 tasks/update resultType: complete──────────────────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "resultType": "complete",                                              │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 7,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+→ tasks/get Mcp-Name: 01a13cecd2a7768b83232f19a7be0ed2
+┌─← 200 tasks/get resultType: complete status: working─────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "resultType": "complete",                                              │
+│       "taskId": "01a13cecd2a7768b83232f19a7be0ed2",                          │
+│       "status": "working",                                                   │
+│       "statusMessage": "Assigning pickup slot (4/5)",                        │
+│       "createdAt": "2026-10-15T00:18:35.8151179\u002B00:00",                 │
+│       "lastUpdatedAt": "2026-10-15T00:18:56.2548957\u002B00:00",             │
+│       "ttlMs": 1800000,                                                      │
+│       "pollIntervalMs": 2000,                                                │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 8,                                                                  │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+  19:18:56 · 00:20 · poll 10  working  Assigning pickup slot (4/5)
+  ↔ tasks/get · working · Assigning pickup slot (4/5) (unchanged)
+  ↔ tasks/get · working · Assigning pickup slot (4/5) (unchanged)
+  ↔ tasks/get · working · Assigning pickup slot (4/5) (unchanged)
+  ↔ tasks/get · working · Assigning pickup slot (4/5) (unchanged)
+→ tasks/get Mcp-Name: 01a13cecd2a7768b83232f19a7be0ed2
+┌─← 200 tasks/get resultType: complete status: working─────────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "resultType": "complete",                                              │
+│       "taskId": "01a13cecd2a7768b83232f19a7be0ed2",                          │
+│       "status": "working",                                                   │
+│       "statusMessage": "Issuing waybill and labels (5/5)",                   │
+│       "createdAt": "2026-10-15T00:18:35.8151179\u002B00:00",                 │
+│       "lastUpdatedAt": "2026-10-15T00:19:06.2555151\u002B00:00",             │
+│       "ttlMs": 1800000,                                                      │
+│       "pollIntervalMs": 2000,                                                │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 13,                                                                 │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+  19:19:06 · 00:30 · poll 15  working  Issuing waybill and labels (5/5)
+  ↔ tasks/get · working · Issuing waybill and labels (5/5) (unchanged)
+  ↔ tasks/get · working · Issuing waybill and labels (5/5) (unchanged)
+  ↔ tasks/get · working · Issuing waybill and labels (5/5) (unchanged)
+  ↔ tasks/get · working · Issuing waybill and labels (5/5) (unchanged)
+→ tasks/get Mcp-Name: 01a13cecd2a7768b83232f19a7be0ed2
+┌─← 200 tasks/get resultType: complete status: completed───────────────────────┐
+│ {                                                                            │
+│    "result": {                                                               │
+│       "resultType": "complete",                                              │
+│       "taskId": "01a13cecd2a7768b83232f19a7be0ed2",                          │
+│       "status": "completed",                                                 │
+│       "statusMessage": "Booked: waybill MCP-BE0ED2",                         │
+│       "createdAt": "2026-10-15T00:18:35.8151179\u002B00:00",                 │
+│       "lastUpdatedAt": "2026-10-15T00:19:16.2554356\u002B00:00",             │
+│       "ttlMs": 1800000,                                                      │
+│       "pollIntervalMs": 2000,                                                │
+│       "result": {                                                            │
+│          "content": [                                                        │
+│             {                                                                │
+│                "type": "text",                                               │
+│                "text": "Booked 42 kg to Oslo by express. Waybill MCP-BE0ED2, │
+│ pickup today 18:00-20:00."                                                   │
+│             }                                                                │
+│          ]                                                                   │
+│       },                                                                     │
+│       "_meta": {                                                             │
+│          "io.modelcontextprotocol/serverInfo": {                             │
+│             "name": "mcp2dialog-server",                                     │
+│             "version": "1.0.0"                                               │
+│          }                                                                   │
+│       }                                                                      │
+│    },                                                                        │
+│    "id": 18,                                                                 │
+│    "jsonrpc": "2.0"                                                          │
+│ }                                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+  19:19:16 · 00:40 · poll 20  completed  Booked: waybill MCP-BE0ED2
+┌─Task completed───────────────────────────────────────────────────────────────┐
+│ Booked 42 kg to Oslo by express. Waybill MCP-BE0ED2, pickup today            │
+│ 18:00-20:00.                                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘
+╭───────────────────────────────┬──────────────────────────────────────────────╮
+│ tools/call requests           │ 1 (across 2 agent runs)                      │
+│ task id                       │ 01a13cecd2a7768b83232f19a7be0ed2             │
+│ tasks/get polls               │ 20                                           │
+│ tasks/update requests         │ 1                                            │
+│ status transitions            │ working → input_required → working →         │
+│                               │ completed                                    │
+│ questions answered (this run) │ 1                                            │
+│ trace id                      │ b48191aa25e94b5c37c19544e44bc691             │
+╰───────────────────────────────┴──────────────────────────────────────────────╯
+
+# exit code: 0   wall clock: 29 s   finished: 2026-10-14T19:19:16-05:00
+
+# Total wall clock for both parts, including the 5 s pause: 41 s

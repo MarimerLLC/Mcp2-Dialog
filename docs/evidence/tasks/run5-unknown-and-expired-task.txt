@@ -1,0 +1,65 @@
+# Server for 5a/5b: dotnet run --project src/Mcp2Dialog.Server -- --urls http://localhost:5299 (normal)
+# Evidence for acceptance criterion 5a: resume an id the server never issued
+# Recorded: 2026-10-14T19:21:21-05:00 on RockyMini, branch demo/tasks @ 014e099
+# Command: mcp2dialog-agent book --resume 0000deadbeef0000 --server http://localhost:5299/mcp
+# Captured by redirecting stdout (non-TTY: Spectre renders without colour at 80 columns, no live display)
+
+┌─Connected────────────────────────────────────────────────────────────┐
+│ Server      mcp2dialog-server 1.0.0                                  │
+│ Protocol    2026-07-28                                               │
+│ Session id  (none: stateless, so requestState correlates the rounds) │
+└──────────────────────────────────────────────────────────────────────┘
+── Resuming task 0000deadbeef0000 (no new tools/call) ──────────────────────────
+[19:21:22.023 WRN] mcp2dialog-server request failed for method 'tasks/get': Unknown task: '0000deadbeef0000' (-32602). <ModelContextProtocol.Client.McpClient> a4228400b330cc16870186725dd0968b
+┌─Task not found───────────────────────────────────────────────────────────────┐
+│ Request failed (remote): Unknown task: '0000deadbeef0000'                    │
+│                                                                              │
+│ The server no longer knows task 0000deadbeef0000: it may have expired, or    │
+│ the server restarted with the in-memory task store. Start a new booking      │
+│ with: book                                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+# exit code: 2   wall clock: 1 s   finished: 2026-10-14T19:21:22-05:00
+
+# Evidence for acceptance criterion 5b: resume with no state file and no id
+# Recorded: 2026-10-14T19:21:22-05:00 on RockyMini, branch demo/tasks @ 014e099
+# Command: mcp2dialog-agent book --resume --state-file .demo/does-not-exist.json --server http://localhost:5299/mcp
+# Captured by redirecting stdout (non-TTY: Spectre renders without colour at 80 columns, no live display)
+
+No task to resume: pass a task id, or book first (no state file at 
+.demo/does-not-exist.json).
+
+# exit code: 2   wall clock: 0 s   finished: 2026-10-14T19:21:22-05:00
+
+# Server for 5c: dotnet run --project src/Mcp2Dialog.Server -- --urls http://localhost:5298 --Tasks:TtlSeconds=6  (task TTL 6 s)
+# >>> 2026-10-14T19:21:25-05:00: booked task 01a13cef63e8745ea9b4cdba05954e7c on the 6 s TTL server, then killed agent 63340; waiting 9 s
+# Evidence for acceptance criterion 5c: resume a task whose TTL has passed
+# Recorded: 2026-10-14T19:21:34-05:00 on RockyMini, branch demo/tasks @ 014e099
+# Command: mcp2dialog-agent book --resume --no-otlp --state-file .demo/ttl-task.json --server http://localhost:5298/mcp
+# Captured by redirecting stdout (non-TTY: Spectre renders without colour at 80 columns, no live display)
+
+┌─Connected────────────────────────────────────────────────────────────┐
+│ Server      mcp2dialog-server 1.0.0                                  │
+│ Protocol    2026-07-28                                               │
+│ Session id  (none: stateless, so requestState correlates the rounds) │
+└──────────────────────────────────────────────────────────────────────┘
+── Resuming task 01a13cef63e8745ea9b4cdba05954e7c (no new tools/call) ──────────
+[19:21:35.490 WRN] mcp2dialog-server request failed for method 'tasks/get': Failed to retrieve task: task '01a13cef63e8745ea9b4cdba05954e7c' has expired (-32602). <ModelContextProtocol.Client.McpClient> 9e8cff15793d1a68b653fa9ed2403771
+┌─Task not found───────────────────────────────────────────────────────────────┐
+│ Request failed (remote): Failed to retrieve task: task                       │
+│ '01a13cef63e8745ea9b4cdba05954e7c' has expired                               │
+│                                                                              │
+│ The server no longer knows task 01a13cef63e8745ea9b4cdba05954e7c: it may     │
+│ have expired, or the server restarted with the in-memory task store. Start a │
+│ new booking with: book                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+# exit code: 2   wall clock: 0 s   finished: 2026-10-14T19:21:35-05:00
+
+# TTL server log after expiry (the background work stops quietly at the TTL):
+[19:21:23.226 INF] Task store: in-memory, ttl 00:00:06, poll interval 2000 ms, freight speed normal <Mcp2Dialog.Server> 
+[19:21:24.081 INF] Task 01a13cef63e8745ea9b4cdba05954e7c: booking 42 kg to Oslo by express in the background <Mcp2Dialog.Server.Freight.FreightTools> 9e8cff15793d1a68b653fa9ed2403771
+[19:21:24.093 INF] Task 01a13cef63e8745ea9b4cdba05954e7c stage 1/5: Validating shipment details <Mcp2Dialog.Server.Freight.FreightBooking> 9e8cff15793d1a68b653fa9ed2403771
+[19:21:28.094 INF] Task 01a13cef63e8745ea9b4cdba05954e7c stage 2/5: Reserving carrier capacity <Mcp2Dialog.Server.Freight.FreightBooking> 9e8cff15793d1a68b653fa9ed2403771
+[19:21:30.072 INF] Task 01a13cef63e8745ea9b4cdba05954e7c ended (cancelled or expired); stopped the booking <Mcp2Dialog.Server.Freight.FreightBooking> 9e8cff15793d1a68b653fa9ed2403771
+[19:21:35.478 WRN] Server (mcp2dialog-server 1.0.0), Client (mcp2dialog-agent 1.0.0) method 'tasks/get' request handler failed in 0.3039ms. <ModelContextProtocol.Server.McpServer> 9e8cff15793d1a68b653fa9ed2403771

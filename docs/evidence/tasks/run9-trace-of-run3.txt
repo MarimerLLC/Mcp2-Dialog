@@ -1,0 +1,73 @@
+# Evidence for acceptance criterion 7: the trace of run3 (kill + resume) as stored by an Aspire dashboard
+# Source: GET http://localhost:18898/api/telemetry/traces/b48191aa25e94b5c37c19544e44bc691 on a standalone aspire-dashboard container
+#   (docker run ... -p 18898:18888 -p 4327:18889 -e Dashboard__Api__Enabled=true mcr.microsoft.com/dotnet/aspire-dashboard:latest);
+#   server and both agent runs exported OTLP to it. Fetched 2026-10-14T19:23:50.
+# Trace b48191aa25e94b5c37c19544e44bc691: 108 spans from 3 service instances; 43 spans tagged mcp2dialog.task.id=01a13cecd2a7768b83232f19a7be0ed2; 5 spans whose parent never arrived (the killed run's in-flight tasks/get spans, under its never-ended 'agent watch task' span).
+# Screenshot of the same kind of trace in the AppHost's dashboard: aspire-trace-kill-and-resume.png
+
+  offset  service (instance)           span                                             task-id tag
+   0.00s  mcp2dialog-agent (98af3bc9)  agent book_freight                               …a7be0ed2
+   0.01s  mcp2dialog-agent (98af3bc9)  tools/call book_freight                          
+   0.02s  mcp2dialog-server (63f368ae) tools/call book_freight                          …a7be0ed2
+   0.02s  mcp2dialog-server (63f368ae) task created                                     …a7be0ed2
+   0.02s  mcp2dialog-server (63f368ae) freight booking                                  …a7be0ed2
+   0.02s  mcp2dialog-server (63f368ae) freight stage 1: Validating shipment details     …a7be0ed2
+   0.02s  mcp2dialog-server (63f368ae) task progress                                    …a7be0ed2
+   0.07s  mcp2dialog-agent (98af3bc9)  tasks/get                                        
+   0.08s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+   2.10s  mcp2dialog-agent (98af3bc9)  tasks/get                                        
+   2.10s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+   4.02s  mcp2dialog-server (63f368ae) freight stage 2: Reserving carrier capacity      …a7be0ed2
+   4.02s  mcp2dialog-server (63f368ae) task progress                                    …a7be0ed2
+   4.10s  mcp2dialog-agent (98af3bc9)  tasks/get                                        
+   4.10s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+   6.11s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  12.02s  mcp2dialog-server (63f368ae) freight stage 3: Customs pre-clearance           …a7be0ed2
+  12.02s  mcp2dialog-server (63f368ae) task progress                                    …a7be0ed2
+  12.37s  mcp2dialog-agent (e72c7a07)  agent book_freight (resumed)                     …a7be0ed2 resumed=true
+  12.38s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  12.38s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  14.41s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  14.41s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  16.41s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  16.41s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  18.41s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  18.41s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  20.02s  mcp2dialog-server (63f368ae) task progress                                    …a7be0ed2
+  20.02s  mcp2dialog-server (63f368ae) freight question: pickup window                  …a7be0ed2
+  20.02s  mcp2dialog-server (63f368ae) task input_required                              …a7be0ed2
+  20.42s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  20.42s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  20.44s  mcp2dialog-agent (e72c7a07)  task input                                       …a7be0ed2
+  20.44s  mcp2dialog-agent (e72c7a07)  elicitation                                      
+  20.45s  mcp2dialog-agent (e72c7a07)  tasks/update                                     
+  20.46s  mcp2dialog-server (63f368ae) tasks/update                                     …a7be0ed2
+  20.46s  mcp2dialog-server (63f368ae) task input received                              …a7be0ed2
+  20.46s  mcp2dialog-server (63f368ae) freight stage 4: Assigning pickup slot           …a7be0ed2
+  20.46s  mcp2dialog-server (63f368ae) task progress                                    …a7be0ed2
+  20.46s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  20.46s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  22.47s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  22.47s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  24.48s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  24.48s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  26.48s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  26.48s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  28.48s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  28.48s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  30.46s  mcp2dialog-server (63f368ae) freight stage 5: Issuing waybill and labels      …a7be0ed2
+  30.46s  mcp2dialog-server (63f368ae) task progress                                    …a7be0ed2
+  30.48s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  30.48s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  32.49s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  32.49s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  34.49s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  34.49s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  36.49s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  36.49s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  38.50s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  38.50s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
+  40.46s  mcp2dialog-server (63f368ae) task progress                                    …a7be0ed2
+  40.46s  mcp2dialog-server (63f368ae) task completed                                   …a7be0ed2
+  40.50s  mcp2dialog-agent (e72c7a07)  tasks/get                                        
+  40.50s  mcp2dialog-server (63f368ae) tasks/get                                        …a7be0ed2
