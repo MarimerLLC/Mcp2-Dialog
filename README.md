@@ -12,6 +12,18 @@ This sample shows an MCP server saying "I need more information before I can ans
 
 Everything targets .NET 10 (`global.json` pins SDK 10.0.401 with `latestFeature` roll-forward).
 
+## Branches
+
+This repo has three branches. Each one is a different demo built on the same sample, and each branch's README covers its own demo. You're reading the README for `demo/scaleout`.
+
+| Branch | Demo |
+|---|---|
+| [`main`](https://github.com/MarimerLLC/Mcp2-Dialog/tree/main) | The base MRTR dialog (`get_shipping_quote`) on its own |
+| [`demo/scaleout`](https://github.com/MarimerLLC/Mcp2-Dialog/tree/demo/scaleout) (this branch) | Two server instances behind a YARP round-robin gateway with no sticky sessions, showing a dialog that survives switching instances (and losing one) because all its state is in `requestState`. See [Scale-out demo](#scale-out-demo-two-instances-no-sticky-sessions) |
+| [`demo/tasks`](https://github.com/MarimerLLC/Mcp2-Dialog/tree/demo/tasks) | Adds a `book_freight` tool that uses the MCP Tasks extension (`io.modelcontextprotocol/tasks`): the server returns a durable task handle and the client polls for the result |
+
+To switch demos, check out the branch, for example `git switch main`.
+
 ## How the dialog works
 
 ```
