@@ -24,6 +24,16 @@ This repo has three branches. Each one is a different demo built on the same sam
 
 To switch demos, check out the branch, for example `git switch main`.
 
+Each demo uses its own ports, so all three can run at the same time. To do that, give each branch its own folder with `git worktree add ../Mcp2-Dialog-tasks demo/tasks` (and the same for `main`).
+
+| Port | `main` | `demo/scaleout` | `demo/tasks` |
+|---|---|---|---|
+| Aspire dashboard | 18888 | 18898 | 18908 |
+| Dashboard OTLP (gRPC) | 4317 | 4327 | 4337 |
+| Aspire resource service | 20144 | 20154 | 20164 |
+| MCP endpoint (`/mcp`) | 5199 | 5203 (gateway) | 5399 |
+| Server instances | | 5201 (server-a), 5202 (server-b) | |
+
 ## How the dialog works
 
 ```
