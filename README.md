@@ -134,6 +134,8 @@ dotnet run --project src/Mcp2Dialog.Agent -- --help
 
 The agent finishes with a summary showing the number of `tools/call` HTTP requests, `input_required` results, questions answered, and the **trace id**. Paste the trace id into the dashboard's Traces page.
 
+The stage script for this demo, with the narration beats, Q&A extras, and fallbacks, is in [`docs/demo-mrtr-runbook.md`](docs/demo-mrtr-runbook.md).
+
 ## What to look at
 
 **Console (agent, `--wire`):** blue panels are requests and yellow panels are `input_required` responses. Request headers include `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method`, and `Mcp-Name`, and there's no `Mcp-Session-Id`. Retries are labeled "retry with inputResponses + requestState".
