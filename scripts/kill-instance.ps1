@@ -2,13 +2,13 @@
 .SYNOPSIS
     Scale-out demo: hard-kills one server instance, like a crash.
 .DESCRIPTION
-    Finds the process listening on the instance's port and kills it. server-a is port 5199 and server-b is
-    port 5200 (the AppHost "scaleout" profile and the server's launch profiles both use these). Bring it back
+    Finds the process listening on the instance's port and kills it. server-a is port 5201 and server-b is
+    port 5202 (the AppHost "scaleout" profile and the server's launch profiles both use these). Bring it back
     with Start on its row in the Aspire dashboard, or by re-running its launch profile.
 .EXAMPLE
     ./scripts/kill-instance.ps1 server-a
 .EXAMPLE
-    ./scripts/kill-instance.ps1 -Port 5200
+    ./scripts/kill-instance.ps1 -Port 5202
 #>
 param(
     [Parameter(Position = 0)]
@@ -19,7 +19,7 @@ param(
 )
 
 if ($Port -eq 0) {
-    $Port = @{ 'server-a' = 5199; 'server-b' = 5200 }[$Instance]
+    $Port = @{ 'server-a' = 5201; 'server-b' = 5202 }[$Instance]
 }
 
 # A listening socket has no remote end. (Filter on that rather than -State Listen: some Windows builds report

@@ -10,14 +10,14 @@ The dashboard actions (Start, Stop, Toggle isolated keys) were run with the Aspi
 
 | Port | What | Notes |
 |---|---|---|
-| 18888 | Aspire dashboard | from the AppHost launch profile |
-| 4317 | Dashboard OTLP (gRPC) | terminal-launched agents report here |
-| 20144 | Aspire resource service | internal |
-| 5199 | `mcp2dialog-server-a` | not proxied by Aspire: Kestrel listens directly |
-| 5200 | `mcp2dialog-server-b` | not proxied |
-| 5300 | `mcp2dialog-gateway` (`/mcp`) | the only address the agents use |
+| 18898 | Aspire dashboard | from the AppHost launch profile |
+| 4327 | Dashboard OTLP (gRPC) | terminal-launched agents report here |
+| 20154 | Aspire resource service | internal |
+| 5201 | `mcp2dialog-server-a` | not proxied by Aspire: Kestrel listens directly |
+| 5202 | `mcp2dialog-server-b` | not proxied |
+| 5203 | `mcp2dialog-gateway` (`/mcp`) | the only address the agents use |
 
-No Docker is needed. If the README's standalone dashboard container (`mcp2dialog-dashboard`) is running, it also binds 18888 and 4317. Stop it first (`docker stop mcp2dialog-dashboard`) so there's only one dashboard on stage.
+No Docker is needed. If the README's standalone dashboard container (`mcp2dialog-dashboard-scaleout`) is running, it also binds 18898 and 4327. Stop it first (`docker stop mcp2dialog-dashboard-scaleout`) so there's only one dashboard on stage.
 
 ## Before the talk (5 minutes, not on stage)
 
@@ -28,12 +28,12 @@ dotnet build Mcp2Dialog.slnx                                         # must say 
 dotnet run --project src/Mcp2Dialog.AppHost --launch-profile scaleout
 ```
 
-- The dashboard opens at http://localhost:18888. **Resources** should list `mcp2dialog-server-a`, `mcp2dialog-server-b`, and `mcp2dialog-gateway` as Running, and `mcp2dialog-agent` and `mcp2dialog-agent-kill` as Not started. Startup took about 5 s on the dev laptop.
+- The dashboard opens at http://localhost:18898. **Resources** should list `mcp2dialog-server-a`, `mcp2dialog-server-b`, and `mcp2dialog-gateway` as Running, and `mcp2dialog-agent` and `mcp2dialog-agent-kill` as Not started. Startup took about 5 s on the dev laptop.
 - In a **second terminal** (this is the one the audience reads), make the font big and the window at least 100 columns wide. The compact view fits in 80 columns.
 - Warm everything up with one dialog. This creates the shared key ring in `.keyring/` and JITs all three apps:
 
   ```powershell
-  dotnet run --project src/Mcp2Dialog.Agent --no-build -- quote --auto --scaleout --server http://localhost:5300/mcp
+  dotnet run --project src/Mcp2Dialog.Agent --no-build -- quote --auto --scaleout --server http://localhost:5203/mcp
   ```
 
   It should end with `sequence A → B → A → B → A → B` (or starting with B). It took 1.4 s, including startup.
@@ -53,7 +53,7 @@ dotnet run --project src/Mcp2Dialog.AppHost --launch-profile scaleout
 **Run** (second terminal):
 
 ```powershell
-dotnet run --project src/Mcp2Dialog.Agent --no-build -- quote --auto --scaleout --server http://localhost:5300/mcp
+dotnet run --project src/Mcp2Dialog.Agent --no-build -- quote --auto --scaleout --server http://localhost:5203/mcp
 ```
 
 **Point at:**
@@ -80,7 +80,7 @@ tools/call get_shipping_quote → server-a 200 in 2 ms
 **Run:**
 
 ```powershell
-dotnet run --project src/Mcp2Dialog.Agent --no-build -- quote --auto --scaleout --kill-after-round 1 --server http://localhost:5300/mcp
+dotnet run --project src/Mcp2Dialog.Agent --no-build -- quote --auto --scaleout --kill-after-round 1 --server http://localhost:5203/mcp
 ```
 
 Or press **Start** on `mcp2dialog-agent-kill` and show its console.
@@ -124,7 +124,7 @@ Without Aspire, add `--Instance:IsolatedKeys=true` to one server's command line.
 ### "Show me `server/discover`"
 
 ```powershell
-dotnet run --project src/Mcp2Dialog.Agent --no-build -- quote --wire --scaleout --server http://localhost:5300/mcp
+dotnet run --project src/Mcp2Dialog.Agent --no-build -- quote --wire --scaleout --server http://localhost:5203/mcp
 ```
 
 Without `--auto`, it stops at the first question, so you can scroll up. The first two panels are `server/discover` and `tools/list`, each with `X-Served-By` and the caching hint. Every request panel shows `MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name`, and `Mcp-Session-Id: none`.
@@ -136,14 +136,14 @@ Without `--auto`, it stops at the first question, so you can scroll up. The firs
 | `--kill-after-round 1` on the agent (used above) | Kills whichever instance served round 1, by the pid it reports in `X-Served-By-Pid`. Use 1 or 2: the retry shows on round N+2. |
 | `mcp2dialog-agent-kill` resource | The same, started from the dashboard |
 | **Stop** on the instance's row in the dashboard | Aspire stops the process. Its port refuses connections afterwards. |
-| `./scripts/kill-instance.ps1 server-a` (or `server-b`, or `-Port 5199`) | Hard-kills whatever *of this sample* listens on that port, from another terminal. macOS/Linux: `./scripts/kill-instance.sh server-a` (untested). |
+| `./scripts/kill-instance.ps1 server-a` (or `server-b`, or `-Port 5201`) | Hard-kills whatever *of this sample* listens on that port, from another terminal. macOS/Linux: `./scripts/kill-instance.sh server-a` (untested). |
 
 Bring an instance back with **Start** on its row, or `aspire resource mcp2dialog-server-a start`.
 
 ## Reset between rehearsals
 
 1. Stop the AppHost with Ctrl+C in its terminal. This also resets any isolated-keys toggle.
-2. Make sure the ports are free: `./scripts/kill-instance.ps1 -Port 5199`, then `-Port 5200` and `-Port 5300`. "Nothing is listening" is the answer you want.
+2. Make sure the ports are free: `./scripts/kill-instance.ps1 -Port 5201`, then `-Port 5202` and `-Port 5203`. "Nothing is listening" is the answer you want.
 3. `git status` should show `src/Mcp2Dialog.Gateway/appsettings.json` unchanged. If it doesn't, `git checkout` that file.
 4. Keep `.keyring/`. Its key lasts 90 days. Delete it only if you want a fresh key, and only while nothing is running.
 
@@ -165,7 +165,7 @@ Bring an instance back with **Start** on its row, or `aspire resource mcp2dialog
 dotnet run --project src/Mcp2Dialog.Server --launch-profile server-a -- --Otlp:Enabled=false
 dotnet run --project src/Mcp2Dialog.Server --launch-profile server-b -- --Otlp:Enabled=false   # start after server-a
 dotnet run --project src/Mcp2Dialog.Gateway -- --Otlp:Enabled=false
-dotnet run --project src/Mcp2Dialog.Agent -- quote --auto --scaleout --server http://localhost:5300/mcp --no-otlp
+dotnet run --project src/Mcp2Dialog.Agent -- quote --auto --scaleout --server http://localhost:5203/mcp --no-otlp
 ```
 
 This is how the transcripts in `docs/evidence/scaleout/` were made. There's no dashboard: the server and gateway consoles show the same lines.

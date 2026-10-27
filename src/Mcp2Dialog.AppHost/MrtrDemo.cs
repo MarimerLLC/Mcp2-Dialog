@@ -3,7 +3,7 @@ internal static class MrtrDemo
 {
     public static void Add(IDistributedApplicationBuilder builder)
     {
-        // The MCP server. Aspire uses its "http" launch profile, so it's still reachable at http://localhost:5199/mcp
+        // The MCP server. Aspire uses its "http" launch profile, so it's still reachable at http://localhost:5201/mcp
         // (through Aspire's proxy). Aspire also passes the OTEL_* variables that point its telemetry at this dashboard.
         var server = builder.AddProject<Projects.Mcp2Dialog_Server>("mcp2dialog-server");
 

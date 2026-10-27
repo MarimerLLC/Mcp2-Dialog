@@ -16,13 +16,13 @@ internal static class ScaleOutDemo
         // --IsolatedKeys server-b starts that instance on a private key ring. Its dashboard command flips it later.
         var isolatedAtStart = builder.Configuration["IsolatedKeys"];
 
-        var serverA = AddServer(builder, "server-a", 5199, keyRing, isolatedAtStart == "server-a");
+        var serverA = AddServer(builder, "server-a", 5201, keyRing, isolatedAtStart == "server-a");
 
         // B starts after A, so A has created the shared key before B first reads the key ring.
-        var serverB = AddServer(builder, "server-b", 5200, keyRing, isolatedAtStart == "server-b").WaitFor(serverA);
+        var serverB = AddServer(builder, "server-b", 5202, keyRing, isolatedAtStart == "server-b").WaitFor(serverA);
 
         var gateway = builder.AddProject<Projects.Mcp2Dialog_Gateway>("mcp2dialog-gateway", launchProfileName: null)
-            .WithHttpEndpoint(port: 5300, isProxied: false)
+            .WithHttpEndpoint(port: 5203, isProxied: false)
             .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
             .WithEnvironment("ReverseProxy__Clusters__mcp-servers__Destinations__server-a__Address", AddressOf(serverA))
             .WithEnvironment("ReverseProxy__Clusters__mcp-servers__Destinations__server-b__Address", AddressOf(serverB))

@@ -79,26 +79,26 @@ An alternative is to put only a dialog id in `requestState` and keep the state i
 dotnet run --project src/Mcp2Dialog.AppHost
 ```
 
-This starts the Aspire Dashboard at http://localhost:18888 and the MCP server at `http://localhost:5199/mcp`. The **Resources** page lists both apps:
+This starts the Aspire Dashboard at http://localhost:18898 and the MCP server at `http://localhost:5201/mcp`. The **Resources** page lists both apps:
 
 - **mcp2dialog-server** runs right away. Its console output, structured logs, traces, and metrics are linked from its row.
 - **mcp2dialog-agent** doesn't start automatically. Press **Start** (▶) on its row to run one unattended dialog (`quote --auto --wire`). It exits when the dialog is done, and you can press Start again for another run. Its console log shows the wire traffic, and its trace shows all the rounds.
 
-The AppHost's `http` launch profile puts the dashboard's OTLP endpoint on `http://localhost:4317` and turns off dashboard login and the OTLP API key. That's for a local sample only. It means an agent you run from your own terminal (step 2) also reports to this dashboard, and appears under Traces and Structured logs as `mcp2dialog-agent-<id>`. The Resources page only lists apps the AppHost started.
+The AppHost's `http` launch profile puts the dashboard's OTLP endpoint on `http://localhost:4327` and turns off dashboard login and the OTLP API key. That's for a local sample only. It means an agent you run from your own terminal (step 2) also reports to this dashboard, and appears under Traces and Structured logs as `mcp2dialog-agent-<id>`. The Resources page only lists apps the AppHost started.
 
 Aspire passes the standard `OTEL_*` variables (endpoint, headers, service name, and instance id) to the apps it starts. `TelemetryExtensions` defers to them, so their telemetry is linked to their rows on the Resources page.
 
 **Option B: standalone dashboard container and server**
 
 ```bash
-docker run -d --rm --name mcp2dialog-dashboard -p 18888:18888 -p 4317:18889   -e ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true   mcr.microsoft.com/dotnet/aspire-dashboard:latest
+docker run -d --rm --name mcp2dialog-dashboard-scaleout -p 18898:18888 -p 4327:18889   -e ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true   mcr.microsoft.com/dotnet/aspire-dashboard:latest
 
 dotnet run --project src/Mcp2Dialog.Server
 ```
 
 The standalone dashboard only receives telemetry (Traces, Structured logs, Metrics). Its **Resources page is empty** because no AppHost is reporting to it. It never lists Docker containers either.
 
-Both apps export OTLP/gRPC to `http://localhost:4317` by default. You can change that with `Otlp:Endpoint` in `appsettings.json`. Without any collector, set `Otlp:Enabled` to `false` on the server, or pass `--no-otlp` to the agent.
+Both apps export OTLP/gRPC to `http://localhost:4327` by default. You can change that with `Otlp:Endpoint` in `appsettings.json`. Without any collector, set `Otlp:Enabled` to `false` on the server, or pass `--no-otlp` to the agent.
 
 ### 2. Run the agent
 
@@ -166,9 +166,9 @@ agent get_shipping_quote                         [agent]
 This demo proves the server keeps nothing between rounds. Two copies of the server run behind a plain round-robin gateway with no session affinity. One dialog bounces between them and still completes, and it still completes if one instance is killed mid-dialog. It's additive: the original demo above is unchanged and still the default.
 
 ```
-                                ┌──► server-a :5199 ─┐
-agent ──► gateway :5300/mcp ────┤  (round robin)     ├── shared key ring (.keyring/)
-          (YARP, no affinity)   └──► server-b :5200 ─┘
+                                ┌──► server-a :5201 ─┐
+agent ──► gateway :5203/mcp ────┤  (round robin)     ├── shared key ring (.keyring/)
+          (YARP, no affinity)   └──► server-b :5202 ─┘
 ```
 
 **The one prerequisite: a shared Data Protection key ring.** `requestState` is encrypted with Data Protection, so every instance must use the same application name and the same keys to decrypt a token another instance minted. The servers read `DataProtection:KeyRingPath`. The AppHost creates `.keyring/` at the repo root (git-ignored) and passes it to both. In production this would be a shared store, such as blob storage, Redis or a database, with the keys protected at rest. Set `Instance:IsolatedKeys=true` on one server to see what happens without it: the first round that changes instance fails with "The dialog state is invalid or has expired. Start a new quote."
@@ -179,8 +179,8 @@ agent ──► gateway :5300/mcp ────┤  (round robin)     ├── s
 dotnet run --project src/Mcp2Dialog.AppHost --launch-profile scaleout     # or: -- --Demo scaleout
 
 # From a terminal (the agent only talks to the gateway):
-dotnet run --project src/Mcp2Dialog.Agent -- quote --auto --scaleout --server http://localhost:5300/mcp
-dotnet run --project src/Mcp2Dialog.Agent -- quote --auto --scaleout --kill-after-round 1 --server http://localhost:5300/mcp
+dotnet run --project src/Mcp2Dialog.Agent -- quote --auto --scaleout --server http://localhost:5203/mcp
+dotnet run --project src/Mcp2Dialog.Agent -- quote --auto --scaleout --kill-after-round 1 --server http://localhost:5203/mcp
 ```
 
 The **Resources** page shows `mcp2dialog-server-a`, `mcp2dialog-server-b`, `mcp2dialog-gateway`, and two explicit-start agents: `mcp2dialog-agent`, and `mcp2dialog-agent-kill`, which uses `--kill-after-round 1`. Each server row has a **Toggle isolated keys** command. Without Aspire, use the server's `server-a` and `server-b` launch profiles and `dotnet run --project src/Mcp2Dialog.Gateway`.
@@ -206,7 +206,7 @@ The stage script is in [`docs/demo-scaleout-runbook.md`](docs/demo-scaleout-runb
 
 - **The first request after a kill takes about 2 s on Windows.** That's how long Windows takes to report a refused connection on loopback. After that, the instance is out of rotation for 10 s, so later requests go straight to the survivor.
 - The server endpoints aren't proxied by Aspire (`isProxied: false`). A killed instance then really refuses connections, which is what the retry relies on.
-- With the standalone dashboard container from Option B running, two dashboards share 18888 and 4317. Stop the container before running the AppHost.
+- With the standalone dashboard container from Option B running, two dashboards share 18898 and 4327. Stop the container before running the AppHost.
 
 ## Key code
 

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Scale-out demo: hard-kills one server instance, like a crash (macOS and Linux; needs lsof).
-# server-a is port 5199 and server-b is port 5200. Bring it back with Start on its row in the Aspire
+# server-a is port 5201 and server-b is port 5202. Bring it back with Start on its row in the Aspire
 # dashboard, or by re-running its launch profile.
 #
 #   ./scripts/kill-instance.sh server-a
-#   ./scripts/kill-instance.sh 5200
+#   ./scripts/kill-instance.sh 5202
 set -euo pipefail
 
 case "${1:-server-a}" in
-    server-a) port=5199 ;;
-    server-b) port=5200 ;;
+    server-a) port=5201 ;;
+    server-b) port=5202 ;;
     *[!0-9]*) echo "usage: $0 [server-a|server-b|PORT]" >&2; exit 2 ;;
     *) port=$1 ;;
 esac
