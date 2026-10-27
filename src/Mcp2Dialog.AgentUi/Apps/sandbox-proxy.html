@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<!--
+  MCP Apps sandbox proxy: the outer frame of the double-iframe sandbox that the spec requires for web hosts.
+
+    agent page (http://localhost:5198)
+      └─ this proxy (http://localhost:5197/sandbox, a different origin, CSP from the app's ui.csp as an HTTP header)
+           └─ the app's HTML (srcdoc, no allow-same-origin, so an opaque origin that inherits this page's CSP)
+
+  The proxy only relays JSON-RPC messages between the agent page and the app. It handles one message itself,
+  ui/notifications/sandbox-resource-ready, which carries the app's HTML.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>MCP Apps sandbox proxy</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: transparent; }
+    iframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; }
+  </style>
+</head>
+<body>
+  <script>
+    "use strict";
+    (() => {
+      if (window.self === window.top) {
+        throw new Error("The MCP Apps sandbox proxy only runs inside the agent page.");
+      }
+
+      // This is a local demo, so the only page allowed to embed the proxy is one on localhost.
+      if (!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(document.referrer)) {
+        throw new Error(`The sandbox proxy refuses to run inside ${document.referrer || "an unknown page"}.`);
+      }
+      const hostOrigin = new URL(document.referrer).origin;
+
+      // Self-test: if this frame can read the agent page, the origins aren't separate and the sandbox is broken.
+      try {
+        void window.top.document.title;
+        throw "SAME_ORIGIN";
+      } catch (e) {
+        if (e === "SAME_ORIGIN") throw new Error("The sandbox proxy shares an origin with the agent page. Refusing to run.");
+      }
+
+      const inner = document.createElement("iframe");
+      inner.setAttribute("sandbox", "allow-scripts allow-forms");
+      document.body.appendChild(inner);
+
+      let loaded = false;
+      window.addEventListener("message", (event) => {
+        const msg = event.data;
+        if (event.source === window.parent) {
+          if (event.origin !== hostOrigin) return;
+
+          if (msg?.method === "ui/notifications/sandbox-resource-ready") {
+            // Load the app once. A second load could come from a reloaded proxy with a different CSP.
+            if (loaded) return;
+            loaded = true;
+            const allow = Object.keys(msg.params?.permissions || {})
+              .map((p) => ({ camera: "camera", microphone: "microphone", geolocation: "geolocation", clipboardWrite: "clipboard-write" })[p])
+              .filter(Boolean).join("; ");
+            if (allow) inner.setAttribute("allow", allow);
+            inner.srcdoc = msg.params?.html ?? "";
+          } else if (inner.contentWindow) {
+            // The app has an opaque origin, so "*" is the only target origin that reaches it.
+            inner.contentWindow.postMessage(msg, "*");
+          }
+        } else if (event.source === inner.contentWindow) {
+          // The sandbox-* notifications belong to the proxy. The app can't send them.
+          if (typeof msg?.method === "string" && msg.method.startsWith("ui/notifications/sandbox-")) return;
+          window.parent.postMessage(msg, hostOrigin);
+        }
+      });
+
+      window.parent.postMessage({ jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {} }, hostOrigin);
+    })();
+  </script>
+</body>
+</html>

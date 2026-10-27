@@ -1,0 +1,199 @@
+@using System.Globalization
+@using System.Text.Json
+@using ModelContextProtocol.Protocol
+@using static ModelContextProtocol.Protocol.ElicitRequestParams
+
+@* One elicitation request from an input_required result. Answering it completes the SDK's elicitation handler. *@
+<div class="card question @(Question.IsOpen ? "open" : "done")">
+    <div class="card-title">
+        <span class="tag tag-ask">input_required</span>
+        Server needs more information
+        @if (Question.Round is { } round)
+        {
+            <span class="muted">dialog …@Short(Question.DialogId) · round @round</span>
+        }
+    </div>
+    <p class="question-message">@Question.Request.Message</p>
+
+    @if (Question.IsOpen)
+    {
+        <form @onsubmit="Submit">
+            @foreach (var (name, schema) in Question.Fields)
+            {
+                var label = schema.Title ?? name;
+                var groupName = $"{_id}-{name}";
+                <div class="field">
+                    <label>@label</label>
+                    @switch (schema)
+                    {
+                        case TitledSingleSelectEnumSchema titled:
+                            <div class="choices">
+                                @foreach (var option in titled.OneOf)
+                                {
+                                    <label class="choice">
+                                        <input type="radio" name="@groupName" checked="@(Value(name) == option.Const)"
+                                               @onchange="() => _values[name] = option.Const" />
+                                        @option.Title
+                                    </label>
+                                }
+                            </div>
+                            break;
+                        case UntitledSingleSelectEnumSchema untitled:
+                            <div class="choices">
+                                @foreach (var option in untitled.Enum)
+                                {
+                                    <label class="choice">
+                                        <input type="radio" name="@groupName" checked="@(Value(name) == option)"
+                                               @onchange="() => _values[name] = option" />
+                                        @option
+                                    </label>
+                                }
+                            </div>
+                            break;
+                        case BooleanSchema:
+                            @* "No" is a real answer (for the surcharge it switches to express), so it isn't the same as declining. *@
+                            <div class="choices">
+                                <label class="choice">
+                                    <input type="radio" name="@groupName" checked="@(Value(name) == "true")" @onchange='() => _values[name] = "true"' /> Yes
+                                </label>
+                                <label class="choice">
+                                    <input type="radio" name="@groupName" checked="@(Value(name) == "false")" @onchange='() => _values[name] = "false"' /> No
+                                </label>
+                            </div>
+                            break;
+                        case NumberSchema number:
+                            <input type="number" step="any" min="@number.Minimum" max="@number.Maximum" @bind="_values[name]" @ref="_first" />
+                            <span class="muted">@number.Minimum to @number.Maximum</span>
+                            break;
+                        default:
+                            <input type="text" @bind="_values[name]" @ref="_first" />
+                            break;
+                    }
+                </div>
+            }
+
+            @if (_error is not null)
+            {
+                <p class="error">@_error</p>
+            }
+
+            <div class="actions">
+                <button type="submit" class="primary">Answer</button>
+                <button type="button" @onclick='() => Refuse("decline")'>Decline</button>
+                <button type="button" @onclick='() => Refuse("cancel")'>Cancel</button>
+                <span class="muted">Decline and cancel are elicitation actions too: the server ends the dialog.</span>
+            </div>
+        </form>
+    }
+    else if (Question.Result is { } result)
+    {
+        <p class="answer">
+            @if (result.Action == "accept")
+            {
+                <span class="tag tag-ok">accept</span>
+                @foreach (var (name, value) in result.Content ?? new Dictionary<string, JsonElement>())
+                {
+                    <code>@name = @value.GetRawText()</code>
+                }
+            }
+            else
+            {
+                <span class="tag tag-error">@result.Action</span>
+            }
+            @if (Question.AnsweredAutomatically)
+            {
+                <span class="muted">(auto-answer)</span>
+            }
+        </p>
+    }
+    else
+    {
+        <p class="muted">Not answered: the call ended first.</p>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public PendingQuestion Question { get; set; } = default!;
+
+    private readonly string _id = Guid.NewGuid().ToString("N")[..8];
+    private readonly Dictionary<string, string?> _values = [];
+    private ElementReference _first;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        foreach (var (name, schema) in Question.Fields)
+        {
+            _values[name] = schema switch
+            {
+                BooleanSchema { Default: { } value } => value ? "true" : "false",
+                StringSchema { Default: { } value } => value,
+                _ => null,
+            };
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Question.IsOpen && _first.Id is not null)
+        {
+            await _first.FocusAsync();
+        }
+    }
+
+    private string? Value(string name) => _values.GetValueOrDefault(name);
+
+    private void Submit()
+    {
+        var content = new Dictionary<string, JsonElement>();
+        foreach (var (name, schema) in Question.Fields)
+        {
+            var label = schema.Title ?? name;
+            var text = Value(name)?.Trim();
+            if (string.IsNullOrEmpty(text))
+            {
+                _error = $"{label}: answer the question, or decline or cancel it.";
+                return;
+            }
+
+            object? value;
+            switch (schema)
+            {
+                case NumberSchema number:
+                    if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var n))
+                    {
+                        _error = $"{label}: enter a number.";
+                        return;
+                    }
+
+                    if (n < number.Minimum || n > number.Maximum)
+                    {
+                        _error = $"{label}: must be between {number.Minimum} and {number.Maximum}.";
+                        return;
+                    }
+
+                    value = n;
+                    break;
+                case BooleanSchema:
+                    value = text == "true";
+                    break;
+                case StringSchema { MinLength: { } minLength } when text.Length < minLength:
+                    _error = $"{label}: must be at least {minLength} characters.";
+                    return;
+                default:
+                    value = text;
+                    break;
+            }
+
+            content[name] = JsonSerializer.SerializeToElement(value);
+        }
+
+        _error = null;
+        Question.Complete(new ElicitResult { Action = "accept", Content = content });
+    }
+
+    private void Refuse(string action) => Question.Complete(new ElicitResult { Action = action });
+
+    private static string Short(string id) => id.Length > 8 ? id[^8..] : id;
+}

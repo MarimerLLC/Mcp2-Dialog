@@ -1,0 +1,61 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@* Every JSON-RPC message: HTTP to the MCP server, and postMessage to and from MCP Apps. *@
+<aside class="wire">
+    <div class="wire-header">
+        <h2>Wire</h2>
+        <label><input type="checkbox" @bind="_showHttp" /> HTTP (MCP server)</label>
+        <label><input type="checkbox" @bind="_showPostMessage" /> postMessage (MCP Apps)</label>
+        <button type="button" @onclick="Log.Clear">Clear</button>
+    </div>
+    <div class="wire-entries" @ref="_entries">
+        @foreach (var entry in Log.Snapshot().Where(Visible))
+        {
+            <details class="wire-entry kind-@entry.Kind.ToString().ToLowerInvariant()" open="@(entry.Body.Length < 1800)" @key="entry.Sequence">
+                <summary>
+                    <span class="tag @(entry.Channel == WireChannel.Http ? "tag-http" : "tag-app")">@(entry.Channel == WireChannel.Http ? "HTTP" : "postMessage")</span>
+                    <span class="wire-title">@entry.Title</span>
+                    <span class="muted">@entry.At.ToString("HH:mm:ss.fff")</span>
+                </summary>
+                @foreach (var header in entry.Headers)
+                {
+                    <div class="wire-header-line">@header</div>
+                }
+                <pre>@entry.Body</pre>
+            </details>
+        }
+    </div>
+</aside>
+
+@code {
+    [Parameter, EditorRequired]
+    public WireLog Log { get; set; } = default!;
+
+    private ElementReference _entries;
+    private IJSObjectReference? _module;
+    private bool _showHttp = true;
+    private bool _showPostMessage = true;
+
+    private bool Visible(WireEntry entry) => entry.Channel == WireChannel.Http ? _showHttp : _showPostMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/follow.js");
+        await _module.InvokeVoidAsync("follow", _entries);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

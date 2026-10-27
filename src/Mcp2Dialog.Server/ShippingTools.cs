@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Mcp2Dialog.Telemetry;
 using ModelContextProtocol;
+using ModelContextProtocol.Extensions.Apps;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using static ModelContextProtocol.Protocol.ElicitRequestParams;
@@ -17,6 +18,10 @@ namespace Mcp2Dialog.Server;
 /// one. That result holds one or more elicitation requests plus an opaque <c>requestState</c>. The client answers
 /// the requests and retries the same tools/call with <c>inputResponses</c> and the echoed <c>requestState</c>.
 /// This repeats until the tool has what it needs.
+/// <para>
+/// The final result carries the quote twice: as text for any client (and a model), and as <c>structuredContent</c>
+/// for the MCP App named in <c>_meta.ui.resourceUri</c>, which hosts that support MCP Apps render instead of the text.
+/// </para>
 /// </summary>
 [McpServerToolType]
 public sealed class ShippingTools(DialogStateProtector protector, ShippingRates rates, ILogger<ShippingTools> logger)
@@ -28,9 +33,10 @@ public sealed class ShippingTools(DialogStateProtector protector, ShippingRates 
         "mcp2dialog.dialog.rounds_to_complete", description: "Number of round trips a dialog needed to finish");
 
     [McpServerTool(Name = "get_shipping_quote", ReadOnly = true)]
+    [McpAppUi(ResourceUri = QuoteCardResource.Uri)]
     [Description("Gets a shipping quote for a package. Any details that are missing are requested from the user " +
                  "through a multi round-trip dialog, so all arguments are optional.")]
-    public string GetShippingQuote(
+    public CallToolResult GetShippingQuote(
         McpServer server,
         RequestContext<CallToolRequestParams> context,
         [Description("Destination city")] string? destination = null,
@@ -70,10 +76,16 @@ public sealed class ShippingTools(DialogStateProtector protector, ShippingRates 
         activity?.SetTag(DialogDiagnostics.Tags.Round, state.Round);
         activity?.SetTag(DialogDiagnostics.Tags.ToolName, "get_shipping_quote");
 
+        // Under 2026-07-28 the client's capabilities, including the extensions it supports, ride on each request's
+        // _meta, which the SDK surfaces on the JSON-RPC message context. (McpServer.ClientCapabilities is always null on
+        // a stateless server.)
+        var clientCapabilities = context.JsonRpcRequest.Context?.ClientCapabilities ?? server.ClientCapabilities;
+        var appsSupported = McpApps.GetUiCapability(clientCapabilities)?.MimeTypes?.Contains(McpApps.HtmlMimeType) == true;
+
         logger.LogInformation(
-            "Dialog {DialogId} round {DialogRound}: {Kind} (protocol {ProtocolVersion}, MRTR supported: {MrtrSupported})",
+            "Dialog {DialogId} round {DialogRound}: {Kind} (protocol {ProtocolVersion}, MRTR supported: {MrtrSupported}, MCP Apps supported: {AppsSupported})",
             state.DialogId, state.Round, request.RequestState is null ? "new request" : "retry with requestState",
-            server.NegotiatedProtocolVersion, server.IsMrtrSupported);
+            server.NegotiatedProtocolVersion, server.IsMrtrSupported, appsSupported);
 
         // 2. Fold in the client's answers from the previous round, if any.
         if (request.InputResponses is { Count: > 0 } responses)
@@ -101,10 +113,7 @@ public sealed class ShippingTools(DialogStateProtector protector, ShippingRates 
         if (inputRequests.Count > 0)
         {
             // MRTR needs a 2026-07-28 client (or a stateful 2025-11-25 session the SDK can bridge), and the client
-            // must declare elicitation. Under 2026-07-28 that declaration rides on each request's _meta, which the
-            // SDK surfaces on the JSON-RPC message context. (McpServer.ClientCapabilities is always null on a
-            // stateless server.) Without both, we can't ask, so tell the caller which arguments to send.
-            var clientCapabilities = context.JsonRpcRequest.Context?.ClientCapabilities ?? server.ClientCapabilities;
+            // must declare elicitation. Without both, we can't ask, so tell the caller which arguments to send.
             if (!server.IsMrtrSupported || clientCapabilities?.Elicitation is null)
             {
                 return Finish(state, "unsupported",
@@ -139,15 +148,56 @@ public sealed class ShippingTools(DialogStateProtector protector, ShippingRates 
             $"${price + surcharge:0.00}" + (surcharge > 0 ? $" including ${surcharge:0.00} heavy overnight surcharge" : "") +
             $". Dialog {state.DialogId} completed in {state.Round} round(s).");
 
-        string Finish(DialogState final, string outcome, string message)
+        CallToolResult Finish(DialogState final, string outcome, string message)
         {
             activity?.SetTag(DialogDiagnostics.Tags.Outcome, outcome);
             Rounds.Add(1, new KeyValuePair<string, object?>("outcome", outcome));
             RoundsToComplete.Record(final.Round, new KeyValuePair<string, object?>("outcome", outcome));
             logger.LogInformation("Dialog {DialogId} finished as {Outcome} after {DialogRound} round(s) in {Elapsed}",
                 final.DialogId, outcome, final.Round, DateTimeOffset.UtcNow - final.StartedAt);
-            return message;
+
+            return new CallToolResult
+            {
+                Content = [new TextContentBlock { Text = message }],
+                StructuredContent = JsonSerializer.SerializeToElement(QuoteView(final, outcome, message), JsonSerializerOptions.Web),
+            };
         }
+    }
+
+    /// <summary>
+    /// What the quote card renders. Hosts don't add structuredContent to a model's context, so it can carry more
+    /// detail than the text, such as the price of every service level for the card's "switch" buttons.
+    /// </summary>
+    private object QuoteView(DialogState state, string outcome, string message)
+    {
+        var known = outcome == "completed";
+        var price = known ? rates.Price(state.WeightKg!.Value, state.Speed!) : (decimal?)null;
+        var surcharge = known && state.SurchargeAccepted == true ? ShippingRates.HeavyOvernightSurcharge : 0m;
+
+        return new
+        {
+            status = outcome,
+            message,
+            dialogId = state.DialogId,
+            rounds = state.Round,
+            destination = state.Destination,
+            weightKg = state.WeightKg,
+            speed = state.Speed,
+            eta = ShippingRates.Services.FirstOrDefault(s => s.Speed == state.Speed).Eta,
+            price,
+            surcharge,
+            total = price + surcharge,
+            options = state.WeightKg is > 0 and <= ShippingRates.MaxWeightKg
+                ? ShippingRates.Services.Select(s => new
+                {
+                    speed = s.Speed,
+                    label = s.Label,
+                    eta = s.Eta,
+                    price = rates.Price(state.WeightKg.Value, s.Speed),
+                    surchargeApplies = s.Speed == "overnight" && state.WeightKg > ShippingRates.HeavyOvernightThresholdKg,
+                }).ToArray()
+                : [],
+        };
     }
 
     private (Dictionary<string, InputRequest> Requests, List<string> Problems) WhatIsMissing(DialogState state)

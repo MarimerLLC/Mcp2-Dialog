@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!--
+      .NET 10 ships blazor.web.js in Microsoft.AspNetCore.App.Internal.Assets, which restore only adds when
+      RequiresAspNetWebAssets is true. The SDK sets it only when it sees .razor files at restore time, so a
+      container build that restores from the csproj alone would serve a 404 for _framework/blazor.web.js.
+      Set it explicitly so the static assets never depend on how the project is restored.
+    -->
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
+    <!-- MCPEXP003: the MCP Apps extension types are experimental in SDK 2.2.0. -->
+    <NoWarn>$(NoWarn);MCPEXP003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="ModelContextProtocol.Extensions.Apps" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Mcp2Dialog.Telemetry\Mcp2Dialog.Telemetry.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The sandbox proxy page is only served on the sandbox origin, with a CSP header, so it isn't a static asset. -->
+    <EmbeddedResource Include="Apps\sandbox-proxy.html" LogicalName="Mcp2Dialog.AgentUi.Apps.sandbox-proxy.html" />
+  </ItemGroup>
+
+</Project>

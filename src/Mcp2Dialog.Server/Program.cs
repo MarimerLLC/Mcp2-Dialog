@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
+using ModelContextProtocol.Extensions.Apps;
 using Mcp2Dialog.Server;
 using Mcp2Dialog.Telemetry;
 using OpenTelemetry.Metrics;
@@ -23,7 +24,10 @@ builder.Services
     // Streamable HTTP is stateless by default in SDK 2.x. Clients that negotiate 2026-07-28 get native MRTR,
     // and there is no Mcp-Session-Id: requestState is what correlates the rounds of a dialog.
     .WithHttpTransport()
-    .WithTools<ShippingTools>();
+    .WithTools<ShippingTools>()
+    // The MCP App that renders a quote. WithMcpApps turns [McpAppUi] on get_shipping_quote into its _meta.ui.
+    .WithResources<QuoteCardResource>()
+    .WithMcpApps();
 
 var app = builder.Build();
 

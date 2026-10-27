@@ -1,13 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <!-- MCPEXP003: the MCP Apps extension APIs are experimental in SDK 2.2.0. -->
+    <NoWarn>$(NoWarn);MCPEXP003</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
+    <PackageReference Include="ModelContextProtocol.Extensions.Apps" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Mcp2Dialog.Telemetry\Mcp2Dialog.Telemetry.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The MCP App's HTML is served as a ui:// resource through resources/read, never over plain HTTP. -->
+    <EmbeddedResource Include="AppUi\quote-card.html" LogicalName="Mcp2Dialog.Server.AppUi.quote-card.html" />
   </ItemGroup>
 
 </Project>

@@ -5,9 +5,10 @@ This sample shows an MCP server saying "I need more information before I can ans
 | Project | What it is |
 |---|---|
 | `src/Mcp2Dialog.Server` | ASP.NET Core MCP server (stateless Streamable HTTP) with one tool, `get_shipping_quote` |
-| `src/Mcp2Dialog.Agent` | Spectre.Console CLI that connects to the server, calls the tool, and answers its questions |
+| `src/Mcp2Dialog.AgentUi` | Blazor Server (InteractiveServer) agent: calls the tool, shows the server's questions as forms, shows the wire traffic, and can act as an **MCP Apps** host |
+| `src/Mcp2Dialog.Agent` | The original Spectre.Console CLI agent. The AppHost no longer runs it, but it still works from a terminal |
 | `src/Mcp2Dialog.Telemetry` | Shared Serilog and OpenTelemetry setup, plus shared span and meta names |
-| `src/Mcp2Dialog.AppHost` | Aspire AppHost that runs the server and the dashboard, with the agent as an on-demand resource |
+| `src/Mcp2Dialog.AppHost` | Aspire AppHost that runs the server, the web agent, and the dashboard |
 
 Everything targets .NET 10 (`global.json` pins SDK 10.0.401 with `latestFeature` roll-forward).
 
@@ -32,6 +33,8 @@ Each demo uses its own ports, so all three can run at the same time. To do that,
 | Aspire resource service | 20144 | 20154 | 20164 |
 | MCP endpoint (`/mcp`) | 5199 | 5203 (gateway) | 5399 |
 | Server instances | | 5201 (server-a), 5202 (server-b) | |
+| Web agent | 5198 | | |
+| MCP Apps sandbox proxy | 5197 | | |
 
 ## How the dialog works
 
@@ -91,7 +94,7 @@ dotnet run --project src/Mcp2Dialog.AppHost
 This starts the Aspire Dashboard at http://localhost:18888 and the MCP server at `http://localhost:5199/mcp`. The **Resources** page lists both apps:
 
 - **mcp2dialog-server** runs right away. Its console output, structured logs, traces, and metrics are linked from its row.
-- **mcp2dialog-agent** doesn't start automatically. Press **Start** (▶) on its row to run one unattended dialog (`quote --auto --wire`). It exits when the dialog is done, and you can press Start again for another run. Its console log shows the wire traffic, and its trace shows all the rounds.
+- **mcp2dialog-agent** is the web agent. It starts after the server. Open it with the **Agent UI** link on its row (http://localhost:5198). Its second URL, http://localhost:5197, is the MCP Apps sandbox proxy, so it's listed only in the resource's details.
 
 The AppHost's `http` launch profile puts the dashboard's OTLP endpoint on `http://localhost:4317` and turns off dashboard login and the OTLP API key. That's for a local sample only. It means an agent you run from your own terminal (step 2) also reports to this dashboard, and appears under Traces and Structured logs as `mcp2dialog-agent-<id>`. The Resources page only lists apps the AppHost started.
 
@@ -109,7 +112,23 @@ The standalone dashboard only receives telemetry (Traces, Structured logs, Metri
 
 Both apps export OTLP/gRPC to `http://localhost:4317` by default. You can change that with `Otlp:Endpoint` in `appsettings.json`. Without any collector, set `Otlp:Enabled` to `false` on the server, or pass `--no-otlp` to the agent.
 
-### 2. Run the agent
+### 2. Use the agent
+
+**Web agent (http://localhost:5198)**
+
+The AppHost starts it. To run it on its own, use `dotnet run --project src/Mcp2Dialog.AgentUi`.
+
+- **Destination / Weight / Speed** are the tool arguments the agent passes up front. Leave them as "ask" and the server asks for them.
+- **Get shipping quote** makes one `tools/call`. Each `input_required` round shows up as question cards (all of a round's questions at once, because the SDK resolves them together). **Decline** and **Cancel** send those elicitation actions.
+- **Auto-answer** answers Oslo / 42 kg / overnight / accept the surcharge (4 rounds), without typing.
+- **MCP Apps UI** declares the `io.modelcontextprotocol/ui` extension and renders tool UIs. See [MCP Apps](#mcp-apps-optional).
+- **List tools** shows each tool's `_meta.ui`.
+- The **Wire** panel shows every JSON-RPC message: HTTP to the server (blue requests, amber `input_required`, green results) and postMessage to and from MCP Apps (purple).
+- Each answer ends with the counts and the **trace id**, which links to the trace in the dashboard.
+
+Each browser tab is its own agent, with its own MCP client and conversation, because the agent is a scoped service per Blazor circuit.
+
+**CLI agent**
 
 ```bash
 # Interactive: the server asks for everything
@@ -136,9 +155,39 @@ The agent finishes with a summary showing the number of `tools/call` HTTP reques
 
 The stage script for this demo, with the narration beats, Q&A extras, and fallbacks, is in [`docs/demo-mrtr-runbook.md`](docs/demo-mrtr-runbook.md).
 
+## MCP Apps (optional)
+
+[MCP Apps](https://modelcontextprotocol.io/seps/1865-mcp-apps-interactive-user-interfaces-for-mcp) (`io.modelcontextprotocol/ui`) is an MCP extension that lets a server ship an interactive UI for a tool. The UI isn't fragments merged into the agent's page. It's a self-contained HTML app that the host runs in a sandboxed iframe, and the data reaches it through ordinary tool calls. Here the web agent is the host. Turn on **MCP Apps UI** to try it.
+
+```
+Server                         Agent (host, :5198)                  Sandbox proxy (:5197)     App (srcdoc iframe)
+  │ tools/list: get_shipping_quote  _meta.ui.resourceUri = ui://mcp2dialog/quote-card.html          │
+  │ ◄── resources/read ui://…    │                                     │                          │
+  │                              │ creates the proxy iframe ──────────►│                          │
+  │                              │ ◄──────────── sandbox-proxy-ready ──│                          │
+  │                              │ ── sandbox-resource-ready (HTML) ──►│ ── srcdoc ──────────────►│
+  │                              │ ◄──────────────────────────────────────────── ui/initialize ───│
+  │ ◄── tools/call (MRTR rounds) │ ── tool-input, then tool-result ──────────────────────────────►│
+  │ ◄── tools/call (proxied) ◄───│ ◄──────────────────────────────── tools/call (Switch button) ──│
+  │                              │ ◄────────────────────────── ui/message, ui/update-model-context │
+```
+
+- **Negotiation.** With the option on, the client adds `extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } }` to its capabilities. Under `2026-07-28` that rides in every request's `_meta`, so the stateless server can check it per call. Its log shows `MCP Apps supported: True`. With the option off, the agent shows the text result, as any client without MCP Apps would.
+- **Server side** (`ModelContextProtocol.Extensions.Apps` 2.2.0, experimental, `MCPEXP003`):
+  - `[McpAppUi(ResourceUri = ...)]` on `get_shipping_quote` and `.WithMcpApps()` produce the tool's `_meta.ui`.
+  - `QuoteCardResource` serves the HTML as a `ui://` resource.
+  - The tool now returns a `CallToolResult` with the same text as before plus `structuredContent` for the card. Hosts don't give `structuredContent` to a model.
+- **Sandbox.** A web host must load apps through a proxy on a different origin. Here the agent also listens on port 5197, which serves only `/sandbox` and puts the resource's `_meta.ui.csp` in a `Content-Security-Policy` header. With no CSP declared, that's the spec's default: no network access. The app runs in a `srcdoc` iframe without `allow-same-origin`, so it gets an opaque origin and can't touch the agent page, its cookies, or the Blazor circuit.
+- **Host side** (`McpAppInstance`):
+  - It answers `ui/initialize` with host info, capabilities, and context (theme variables, `toolInfo`).
+  - It sends `tool-input` once the app is initialized, then `tool-result` (or `tool-cancelled`).
+  - It proxies the app's `tools/call` after checking the tool's `visibility` includes `app`.
+  - It handles `ui/message` and `ui/update-model-context`. This agent has no model, so it only shows them.
+- **A detail worth showing.** The card's **Switch** buttons call `get_shipping_quote` through the host with all three arguments, so that usually takes one round. Switching a heavy package to overnight still makes the server ask about the surcharge. That question appears in the agent's conversation, not in the app, because elicitation belongs to the host.
+
 ## What to look at
 
-**Console (agent, `--wire`):** blue panels are requests and yellow panels are `input_required` responses. Request headers include `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method`, and `Mcp-Name`, and there's no `Mcp-Session-Id`. Retries are labeled "retry with inputResponses + requestState".
+**Wire panel (web agent) or console (CLI agent, `--wire`):** blue panels are requests and yellow panels are `input_required` responses. Request headers include `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method`, and `Mcp-Name`, and there's no `Mcp-Session-Id`. Retries are labeled "retry with inputResponses + requestState".
 
 **Console (server):** one line per round, for example:
 
@@ -179,15 +228,20 @@ agent get_shipping_quote                         [agent]
 | `src/Mcp2Dialog.Server/ShippingTools.cs` | The MRTR tool: correlating with `requestState`, reading `InputResponses`, throwing `InputRequiredException` |
 | `src/Mcp2Dialog.Server/DialogStateProtector.cs` | Encrypting and time-limiting `requestState` |
 | `src/Mcp2Dialog.Server/Program.cs` | Stateless MCP server (`WithHttpTransport()`; stateless is the 2.x default) |
-| `src/Mcp2Dialog.Agent/AgentSession.cs` | `McpClient` with an `ElicitationHandler`, which is all the client code MRTR needs |
-| `src/Mcp2Dialog.Agent/ElicitationPrompter.cs` | Turning elicitation schemas into Spectre prompts (or auto answers) |
-| `src/Mcp2Dialog.Agent/WireLoggingHandler.cs` | `DelegatingHandler` that shows the raw JSON-RPC traffic |
+| `src/Mcp2Dialog.Server/QuoteCardResource.cs`, `AppUi/quote-card.html` | The MCP App: a `ui://` resource and a self-contained HTML page with a small JSON-RPC client (no SDK) |
+| `src/Mcp2Dialog.AgentUi/Agent/AgentSession.cs` | `McpClient` with an `ElicitationHandler` (all the client code MRTR needs), the MCP Apps capability, and loading an app alongside the call |
+| `src/Mcp2Dialog.AgentUi/Agent/PendingQuestion.cs`, `Components/Agent/QuestionCard.razor` | Turning an elicitation into a form the handler awaits |
+| `src/Mcp2Dialog.AgentUi/Agent/WireLoggingHandler.cs` | `DelegatingHandler` that records the raw JSON-RPC traffic for the wire panel |
+| `src/Mcp2Dialog.AgentUi/Apps/McpAppInstance.cs` | The MCP Apps host: `ui/initialize`, tool input and result, proxied `tools/call` |
+| `src/Mcp2Dialog.AgentUi/Apps/SandboxProxy.cs`, `sandbox-proxy.html`, `Components/Agent/McpAppFrame.razor(.js)` | The double-iframe sandbox: separate origin, CSP header, message relay |
+| `src/Mcp2Dialog.Agent/AgentSession.cs`, `ElicitationPrompter.cs` | The same client code in the CLI agent, with Spectre prompts |
 | `src/Mcp2Dialog.Telemetry/TelemetryExtensions.cs` | Serilog (console + OTLP) and OpenTelemetry (traces + metrics) setup, respecting `OTEL_*` variables from a launcher |
-| `src/Mcp2Dialog.AppHost/AppHost.cs` | Aspire resources: the server, plus the agent as an explicit-start resource pointed at the server's endpoint |
+| `src/Mcp2Dialog.AppHost/AppHost.cs` | Aspire resources: the server, and the web agent pointed at the server's endpoint and its own sandbox endpoint |
 
 ## Packages
 
-- `ModelContextProtocol` / `ModelContextProtocol.AspNetCore` 2.2.0
+- `ModelContextProtocol` / `ModelContextProtocol.AspNetCore` / `ModelContextProtocol.Extensions.Apps` 2.2.0
+- ASP.NET Core Blazor (.NET 10, InteractiveServer). The web agent sets `RequiresAspNetWebAssets` so `_framework/blazor.web.js` is restored even when the project is restored without its `.razor` files (as in a container build)
 - `Microsoft.Extensions.Hosting` / `Microsoft.Extensions.Http` 10.0.x
 - `Serilog.AspNetCore`, `Serilog.Extensions.Hosting`, `Serilog.Sinks.Console`, `Serilog.Sinks.OpenTelemetry`
 - `OpenTelemetry.Extensions.Hosting`, OTLP exporter, ASP.NET Core / HttpClient / runtime instrumentation

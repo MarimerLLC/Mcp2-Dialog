@@ -12,6 +12,8 @@ The machine timings and all the output quoted here come from runs on the dev lap
 | 4317 | Dashboard OTLP (gRPC) | terminal-launched agents report here |
 | 20144 | Aspire resource service | internal |
 | 5199 | `mcp2dialog-server` (`/mcp`) | the agent's default `--server` |
+| 5198 | `mcp2dialog-agent` (web agent) | the **Agent UI** link in Resources |
+| 5197 | MCP Apps sandbox proxy | served by the web agent, a separate origin on purpose |
 
 The other two demos use their own ports (see the README's Branches section), so they can run at the same time as this one. If the README's standalone dashboard container (`mcp2dialog-dashboard`) is running, it also binds 18888 and 4317. Stop it first (`docker stop mcp2dialog-dashboard`).
 
@@ -25,7 +27,7 @@ dotnet run --project src/Mcp2Dialog.AppHost
 ```
 
 - The build shows 2 NuGet audit warnings for `MessagePack` (pulled in by Aspire). They're expected and don't affect the demo.
-- The dashboard is at http://localhost:18888. **Resources** should list `mcp2dialog-server` as Running and `mcp2dialog-agent` as Not started. Startup took about 5 s on the dev laptop.
+- The dashboard is at http://localhost:18888. **Resources** should list `mcp2dialog-server` and `mcp2dialog-agent` (the web agent) as Running. Startup took about 5 s on the dev laptop.
 - The very first AppHost start on a machine downloads `aspire.cli`, which took about 2.5 minutes and can hit Aspire's 120-second timeout. Do one full start the day before, and don't clear the NuGet cache afterwards.
 - In a **second terminal** (this is the one the audience reads), make the font big and the window at least 80 columns wide. All the output fits in 80 columns.
 - Warm everything up with one dialog:
@@ -145,9 +147,29 @@ The result has `"isError": true` and the text `The dialog state is invalid or ha
 
 Run the same request with `'io.modelcontextprotocol/clientCapabilities' = @{}`, and without the `requestState` entry (otherwise you get the tampered-state error again). The server doesn't ask. It completes in one round with guidance: `More information is needed (destination, weight). Call again with destination, weightKg, and speed, or use a client that supports MCP 2026-07-28 multi round-trip requests with elicitation.`
 
-### Run it from the dashboard instead
+### Run it in the web agent instead
 
-Press **Start** (▶) on `mcp2dialog-agent` in Resources. It runs `quote --auto --wire` once and exits. Its console log shows the same wire panels.
+Open **Agent UI** on the `mcp2dialog-agent` row in Resources (http://localhost:5198). The same beats work there:
+
+- The server's questions are cards with Answer, Decline, and Cancel.
+- The Wire panel on the right replaces `--wire`.
+- **Auto-answer** replaces `--auto`.
+- The Destination, Weight, and Speed boxes replace `-d`, `-w`, and `-s`.
+- Each answer's trace id links to the trace.
+
+### "Can the server give the agent a UI?" (MCP Apps, about 1 minute)
+
+In the web agent, tick **MCP Apps UI** and press **Get shipping quote**. Auto-answer is quicker, but answering by hand is fine.
+
+**Point at:**
+
+- The **Connected** card says the client declared `io.modelcontextprotocol/ui`. The server's console says `MCP Apps supported: True`.
+- The tool's `_meta.ui.resourceUri` is in the `tools/list` response (Wire panel), and the agent then does `resources/read` of `ui://mcp2dialog/quote-card.html`.
+- The purple **MCP App** frame opens as the call starts and says "waiting" while the MRTR questions are answered in the conversation. Then the purple postMessage entries show `ui/initialize`, `tool-input`, and `tool-result`.
+- In the card, press **Switch** on Express. That's the app sending `tools/call` through its host. It's one round, because the app passes every argument.
+- Then press **Switch** on Overnight. The server asks about the surcharge again, and the question appears in the agent, not in the app.
+- **Book this shipment** sends a `ui/message`. The agent shows it but has no model to answer it.
+- Sandboxing: the card runs on another origin (port 5197) with a no-network CSP.
 
 ## Reset between rehearsals
 
@@ -178,5 +200,5 @@ There's no dashboard, so skip the trace beat. The server's console shows the sam
 These weren't checked in development, so check them during rehearsal:
 
 - The interactive prompts: typing the answers, the speed and surcharge menus, and the blank-answer menu with Decline and Cancel. The harness can't drive Spectre's prompts, so the 0:30–1:30 beat is based on the code and the `--auto` runs. The questions, prices, and final quote match the `--auto` run.
-- The dashboard clicks: the Traces view and the Start button on `mcp2dialog-agent`.
+- The dashboard clicks: the Traces view and the **Agent UI** link on `mcp2dialog-agent`. (The web agent's flows, including MCP Apps, were run in Chrome during development.)
 - Readability at 1080p on a projector.

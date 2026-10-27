@@ -1,0 +1,86 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AgentSession Session
+
+@* An MCP App, rendered by the agent as its host. The HTML came from the server's ui:// resource. *@
+<div class="app-frame @(App.PrefersBorder ? "bordered" : "")">
+    <div class="app-frame-header">
+        <span class="tag tag-app">MCP App</span>
+        <code>@App.ResourceUri</code>
+        <span class="muted">for @App.ToolName · sandboxed on @_proxyOrigin</span>
+    </div>
+    <div class="app-frame-body" @ref="_container"></div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public McpAppInstance App { get; set; } = default!;
+
+    private ElementReference _container;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _frame;
+    private DotNetObjectReference<McpAppFrame>? _self;
+    private string _proxyOrigin = "";
+
+    protected override void OnInitialized() =>
+        _proxyOrigin = new Uri(Session.Options.SandboxUrl).GetLeftPart(UriPartial.Authority);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _self = DotNetObjectReference.Create(this);
+        App.Attach(json => InvokeAsync(async () =>
+        {
+            if (_frame is not null)
+            {
+                await _frame.InvokeVoidAsync("post", json);
+            }
+        }));
+
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Agent/McpAppFrame.razor.js");
+        _frame = await _module.InvokeAsync<IJSObjectReference>("mount",
+            _container, new Uri(new Uri(Session.Options.SandboxUrl), SandboxProxy.Path).ToString(),
+            App.Html, App.CspJson, App.PermissionsJson, _self);
+    }
+
+    [JSInvokable]
+    public Task<string?> OnMessage(string json) => App.HandleMessageAsync(json);
+
+    [JSInvokable]
+    public void OnSandboxReady(string proxyOrigin, int htmlLength)
+    {
+        Session.Wire.Add(WireChannel.PostMessage, WireKind.AppToHost, "proxy → host  ui/notifications/sandbox-proxy-ready",
+            [$"origin: {proxyOrigin}"], "{ }");
+        Session.Wire.Add(WireChannel.PostMessage, WireKind.HostToApp, "host → proxy  ui/notifications/sandbox-resource-ready",
+            [$"csp: {App.CspJson}"], $"{{ \"html\": \"({htmlLength} chars from {App.ResourceUri})\" }}");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_frame is not null)
+            {
+                await App.TeardownAsync();
+                App.Detach();
+                await _frame.InvokeVoidAsync("unmount");
+                await _frame.DisposeAsync();
+            }
+
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // The browser is gone, and the iframe with it.
+        }
+
+        _self?.Dispose();
+    }
+}

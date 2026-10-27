@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<!--
+  MCP App (io.modelcontextprotocol/ui) for get_shipping_quote, served as ui://mcp2dialog/quote-card.html.
+
+  The host runs this page in a sandboxed iframe and talks to it with JSON-RPC over postMessage:
+    View → Host   ui/initialize, ui/notifications/initialized, tools/call, ui/message,
+                  ui/update-model-context, ui/notifications/size-changed
+    Host → View   ui/notifications/tool-input, ui/notifications/tool-result, ui/notifications/tool-cancelled,
+                  ui/notifications/host-context-changed, ui/resource-teardown
+  The page can't reach the MCP server (or anything else) directly. Every tools/call goes through the host,
+  which decides whether to allow it.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shipping quote</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: var(--color-background-primary, #ffffff);
+      --bg-2: var(--color-background-secondary, #f4f6fa);
+      --fg: var(--color-text-primary, #1b1f27);
+      --fg-2: var(--color-text-secondary, #5b6475);
+      --line: var(--color-border-primary, #d9dee8);
+      --accent: #6d4ae0;
+      --ok: #1f8a4c;
+      --warn: #b26b00;
+      --bad: #c03030;
+      font-family: var(--font-sans, "Segoe UI", system-ui, sans-serif);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--fg); }
+    body { padding: 16px 18px; font-size: 15px; line-height: 1.4; }
+    header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    h1 { font-size: 18px; margin: 0; }
+    .badge { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 1px 8px; }
+    .muted { color: var(--fg-2); }
+    .status { margin: 12px 0 0; }
+    .route { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; margin: 14px 0 6px; }
+    .route dt { color: var(--fg-2); }
+    .route dd { margin: 0; font-weight: 600; }
+    .total { font-size: 34px; font-weight: 700; margin: 8px 0 0; }
+    .total small { font-size: 13px; font-weight: 400; color: var(--fg-2); }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+    th, td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); }
+    th { font-size: 12px; font-weight: 600; color: var(--fg-2); text-transform: uppercase; letter-spacing: .04em; }
+    tr.current td { background: var(--bg-2); font-weight: 600; }
+    td.price { font-variant-numeric: tabular-nums; }
+    button { font: inherit; border: 1px solid var(--accent); background: transparent; color: var(--accent);
+             border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+    button.primary { background: var(--accent); color: #fff; }
+    button:disabled { opacity: .5; cursor: default; }
+    .actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+    .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+    footer { margin-top: 14px; font-size: 12px; color: var(--fg-2); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📦 Shipping quote</h1>
+    <span class="badge">MCP App · rendered from ui://mcp2dialog/quote-card.html</span>
+  </header>
+  <div id="view"><p class="status muted">Connecting to the host…</p></div>
+  <footer id="log"></footer>
+
+  <script>
+    "use strict";
+
+    // ---- A minimal JSON-RPC client over postMessage. The parent is the host's sandbox proxy. ----------------
+    let nextId = 1;
+    const pending = new Map();
+
+    function send(message) { window.parent.postMessage(message, "*"); }
+
+    function request(method, params) {
+      const id = nextId++;
+      send({ jsonrpc: "2.0", id, method, params });
+      return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+    }
+
+    function notify(method, params) { send({ jsonrpc: "2.0", method, params }); }
+
+    window.addEventListener("message", (event) => {
+      if (event.source !== window.parent) return;
+      const msg = event.data;
+      if (!msg || msg.jsonrpc !== "2.0") return;
+
+      if (msg.id !== undefined && !msg.method) {
+        const call = pending.get(msg.id);
+        if (call) {
+          pending.delete(msg.id);
+          msg.error ? call.reject(new Error(msg.error.message)) : call.resolve(msg.result);
+        }
+        return;
+      }
+
+      switch (msg.method) {
+        case "ui/notifications/tool-input": onToolInput(msg.params); break;
+        case "ui/notifications/tool-result": onToolResult(msg.params); break;
+        case "ui/notifications/tool-cancelled": render({ status: "cancelled", message: msg.params?.reason || "The tool call was cancelled." }); break;
+        case "ui/notifications/host-context-changed": applyHostContext(msg.params); break;
+        case "ui/resource-teardown": send({ jsonrpc: "2.0", id: msg.id, result: {} }); break;
+        case "ping": send({ jsonrpc: "2.0", id: msg.id, result: {} }); break;
+        default:
+          if (msg.id !== undefined) send({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: "Method not found" } });
+      }
+    });
+
+    // ---- Host context: theme and CSS variables. -------------------------------------------------------------
+    function applyHostContext(context) {
+      if (!context) return;
+      if (context.theme) document.documentElement.style.colorScheme = context.theme;
+      for (const [name, value] of Object.entries(context.styles?.variables || {})) {
+        if (value) document.documentElement.style.setProperty(name, value);
+      }
+    }
+
+    // ---- Rendering. ----------------------------------------------------------------------------------------
+    let quote = null;
+    let busy = false;
+    const view = document.getElementById("view");
+    const log = document.getElementById("log");
+    const money = (n) => (n == null ? "" : "$" + Number(n).toFixed(2));
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+    function onToolInput(params) {
+      const args = params?.arguments || {};
+      const known = Object.keys(args).length ? Object.entries(args).map(([k, v]) => `${k}: ${v}`).join(", ") : "no arguments";
+      view.innerHTML = `<p class="status muted">Waiting for the quote (called with ${esc(known)})…<br>
+        The server may ask the user for missing details first.</p>`;
+    }
+
+    function onToolResult(result) {
+      const data = result?.structuredContent;
+      if (data) {
+        render(data);
+      } else {
+        const text = (result?.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
+        render({ status: result?.isError ? "error" : "completed", message: text });
+      }
+    }
+
+    function render(data) {
+      quote = data;
+      if (data.status !== "completed" || data.total == null) {
+        const cls = data.status === "cancelled" ? "warn" : "bad";
+        view.innerHTML = `<p class="status ${cls}">${esc(data.message || data.status)}</p>`;
+        return;
+      }
+
+      const rows = (data.options || []).map((o) => `
+        <tr class="${o.speed === data.speed ? "current" : ""}">
+          <td>${esc(o.label)}</td>
+          <td>${esc(o.eta)}</td>
+          <td class="price">${money(o.price)}${o.surchargeApplies ? ' <span class="warn">+ surcharge</span>' : ""}</td>
+          <td>${o.speed === data.speed ? '<span class="ok">selected</span>'
+                : `<button data-speed="${esc(o.speed)}" ${busy ? "disabled" : ""}>Switch</button>`}</td>
+        </tr>`).join("");
+
+      view.innerHTML = `
+        <dl class="route">
+          <dt>To</dt><dd>${esc(data.destination)}</dd>
+          <dt>Weight</dt><dd>${esc(data.weightKg)} kg</dd>
+          <dt>Service</dt><dd>${esc(data.speed)} (${esc(data.eta)})</dd>
+        </dl>
+        <p class="total">${money(data.total)}
+          <small>${data.surcharge > 0 ? `${money(data.price)} + ${money(data.surcharge)} heavy overnight surcharge` : "no surcharge"}</small></p>
+        <table>
+          <thead><tr><th>Service</th><th>Delivery</th><th>Price</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="actions">
+          <button class="primary" id="book" ${busy ? "disabled" : ""}>Book this shipment</button>
+          <span class="muted">Dialog …${esc(String(data.dialogId || "").slice(-8))} · ${esc(data.rounds)} round(s)</span>
+        </div>`;
+
+      view.querySelectorAll("button[data-speed]").forEach((b) => b.addEventListener("click", () => switchSpeed(b.dataset.speed)));
+      document.getElementById("book").addEventListener("click", book);
+
+      // Tell the host what the user is looking at, so a model would see it on the next turn.
+      request("ui/update-model-context", {
+        content: [{ type: "text", text: `The user is viewing the ${data.speed} quote to ${data.destination} for ${data.weightKg} kg: ${money(data.total)}.` }],
+        structuredContent: { destination: data.destination, weightKg: data.weightKg, speed: data.speed, total: data.total },
+      }).catch(() => {});
+    }
+
+    // The view asks the host to call the server's tool. All three arguments are known, so this usually completes
+    // in one round. A heavy overnight package still makes the server ask about the surcharge, and the host shows
+    // that question to the user, outside this iframe.
+    async function switchSpeed(speed) {
+      busy = true;
+      render(quote);
+      log.textContent = `tools/call get_shipping_quote (speed: ${speed}) sent through the host…`;
+      try {
+        const result = await request("tools/call", {
+          name: "get_shipping_quote",
+          arguments: { destination: quote.destination, weightKg: quote.weightKg, speed },
+        });
+        busy = false;
+        onToolResult(result);
+        log.textContent = `Re-quoted through the host: tools/call returned ${result?.structuredContent?.status || "a result"}.`;
+      } catch (e) {
+        busy = false;
+        render(quote);
+        log.innerHTML = `<span class="bad">The host refused or failed the tools/call: ${esc(e.message)}</span>`;
+      }
+    }
+
+    async function book() {
+      try {
+        await request("ui/message", {
+          role: "user",
+          content: { type: "text", text: `Book the ${quote.speed} shipment to ${quote.destination} (${quote.weightKg} kg) for ${money(quote.total)}.` },
+        });
+        log.textContent = "Sent a ui/message to the host's conversation.";
+      } catch (e) {
+        log.innerHTML = `<span class="bad">The host refused the message: ${esc(e.message)}</span>`;
+      }
+    }
+
+    // ---- Size reporting: the host sizes the iframe to fit. ---------------------------------------------------
+    let lastHeight = 0;
+    new ResizeObserver(() => {
+      const height = Math.ceil(document.documentElement.getBoundingClientRect().height);
+      if (height !== lastHeight) {
+        lastHeight = height;
+        notify("ui/notifications/size-changed", { width: document.documentElement.clientWidth, height });
+      }
+    }).observe(document.documentElement);
+
+    // ---- Handshake. The host sends nothing until it gets ui/notifications/initialized. -----------------------
+    (async () => {
+      const init = await request("ui/initialize", {
+        protocolVersion: "2026-01-26",
+        appInfo: { name: "mcp2dialog-quote-card", version: "1.0.0" },
+        appCapabilities: { availableDisplayModes: ["inline"] },
+      });
+      applyHostContext(init?.hostContext);
+      log.textContent = `Connected to ${init?.hostInfo?.name ?? "the host"} (MCP Apps ${init?.protocolVersion ?? "?"}).`;
+      view.innerHTML = '<p class="status muted">Waiting for the tool call…</p>';
+      notify("ui/notifications/initialized", {});
+    })().catch((e) => { view.innerHTML = `<p class="status bad">Handshake failed: ${esc(e.message)}</p>`; });
+  </script>
+</body>
+</html>

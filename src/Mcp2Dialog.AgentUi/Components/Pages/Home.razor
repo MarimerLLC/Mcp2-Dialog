@@ -1,0 +1,214 @@
+@page "/"
+@using System.Globalization
+@implements IAsyncDisposable
+@inject AgentSession Session
+@inject IJSRuntime JS
+
+<PageTitle>MCP 2 dialog agent</PageTitle>
+
+<div class="layout">
+    <section class="conversation" @ref="_conversation">
+        <div class="card controls">
+            <div class="control-row">
+                <label>Destination <input type="text" placeholder="ask" @bind="_destination" /></label>
+                <label>Weight (kg) <input type="text" placeholder="ask" @bind="_weight" class="narrow" /></label>
+                <label>
+                    Speed
+                    <select @bind="_speed">
+                        <option value="">ask</option>
+                        <option value="standard">standard</option>
+                        <option value="express">express</option>
+                        <option value="overnight">overnight</option>
+                    </select>
+                </label>
+            </div>
+            <div class="control-row">
+                <label title="Answer Oslo / 42 kg / overnight / accept the surcharge (4 rounds)">
+                    <input type="checkbox" @bind="AutoAnswer" /> Auto-answer
+                </label>
+                <label title="Declare the io.modelcontextprotocol/ui extension and render tool UIs from ui:// resources">
+                    <input type="checkbox" @bind="UseApps" /> MCP Apps UI <code>io.modelcontextprotocol/ui</code>
+                </label>
+            </div>
+            <div class="control-row">
+                <button class="primary" @onclick="QuoteAsync" disabled="@Session.IsBusy">Get shipping quote</button>
+                <button @onclick="Session.ListToolsAsync" disabled="@Session.IsBusy">List tools</button>
+                <button @onclick="Session.Stop" disabled="@(!Session.IsBusy)">Stop</button>
+                <button @onclick="Session.Clear" disabled="@Session.IsBusy">Clear</button>
+                @if (Session.IsBusy)
+                {
+                    <span class="muted">tools/call in progress…</span>
+                }
+            </div>
+        </div>
+
+        @if (Session.ModelContext is { } context)
+        {
+            <div class="card note note-modelcontext">
+                <div class="card-title"><span class="tag tag-app">ui/update-model-context</span> Model context from the app</div>
+                <p>@context</p>
+            </div>
+        }
+
+        @foreach (var entry in Session.Transcript)
+        {
+            @switch (entry)
+            {
+                case ConnectedEntry connected:
+                    <div class="card connected" @key="entry">
+                        <div class="card-title">Connected</div>
+                        <dl class="grid">
+                            <dt>Server</dt><dd>@connected.Server</dd>
+                            <dt>Protocol</dt><dd>@connected.Protocol</dd>
+                            <dt>Session id</dt>
+                            <dd>@(connected.SessionId ?? "none: stateless, so requestState correlates the rounds")</dd>
+                            <dt>MCP Apps</dt>
+                            <dd>@(connected.AppsDeclared ? "declared (extensions → io.modelcontextprotocol/ui)" : "not declared: tool results show as text")</dd>
+                        </dl>
+                    </div>
+                    break;
+
+                case ToolsEntry tools:
+                    <div class="card" @key="entry">
+                        <div class="card-title">Tools</div>
+                        <table class="tools">
+                            <thead><tr><th>Tool</th><th>Description</th><th>_meta.ui</th></tr></thead>
+                            <tbody>
+                                @foreach (var tool in tools.Tools)
+                                {
+                                    <tr>
+                                        <td><code>@tool.Name</code></td>
+                                        <td>@tool.Description</td>
+                                        <td>
+                                            @if (tool.UiResourceUri is { } uri)
+                                            {
+                                                <code>@uri</code>
+                                                <div class="muted">visibility: @string.Join(", ", tool.Visibility)</div>
+                                            }
+                                            else
+                                            {
+                                                <span class="muted">none</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    break;
+
+                case CallEntry call:
+                    <div class="call" @key="entry">
+                        @if (call.Origin == CallOrigin.App)
+                        {
+                            <span class="tag tag-app">App → host</span>
+                        }
+                        else
+                        {
+                            <span class="tag tag-http">Agent</span>
+                        }
+                        → <code>@call.Tool</code> <code class="muted">@call.Arguments</code>
+                    </div>
+                    break;
+
+                case QuestionEntry question:
+                    <QuestionCard Question="question.Question" @key="entry" />
+                    break;
+
+                case AppEntry app:
+                    <McpAppFrame App="app.App" @key="entry" />
+                    break;
+
+                case ResultEntry result:
+                    <div class="card result @(result.IsError ? "error" : "ok")" @key="entry">
+                        <div class="card-title">
+                            <span class="tag @(result.IsError ? "tag-error" : "tag-ok")">@(result.IsError ? "error" : "complete")</span>
+                            @(result.Origin == CallOrigin.App ? "Server answer (to the app's call)" : "Server answer")
+                        </div>
+                        <p>@result.Text</p>
+                        <div class="summary">
+                            <span><b>@result.Summary.ToolCallRequests</b> tools/call HTTP requests</span>
+                            <span><b>@result.Summary.InputRequiredResults</b> input_required results</span>
+                            <span><b>@result.Summary.QuestionsAnswered</b> questions answered</span>
+                            @if (result.Summary.TraceId is { } traceId)
+                            {
+                                <span>trace <a href="@($"{Session.Options.DashboardUrl.TrimEnd('/')}/traces/detail/{traceId}")" target="_blank"><code>@traceId</code></a></span>
+                            }
+                        </div>
+                    </div>
+                    break;
+
+                case NoteEntry note:
+                    <div class="card note note-@note.Kind.ToString().ToLowerInvariant()" @key="entry">
+                        <div class="card-title">@note.Title</div>
+                        <p class="pre">@note.Text</p>
+                    </div>
+                    break;
+            }
+        }
+    </section>
+
+    <WirePanel Log="Session.Wire" />
+</div>
+
+@code {
+    private ElementReference _conversation;
+    private IJSObjectReference? _follow;
+    private string? _destination;
+    private string? _weight;
+    private string _speed = "";
+
+    private bool AutoAnswer
+    {
+        get => Session.AutoAnswer;
+        set => Session.AutoAnswer = value;
+    }
+
+    private bool UseApps
+    {
+        get => Session.UseApps;
+        set => Session.UseApps = value;
+    }
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += OnChanged;
+        Session.Wire.Changed += OnChanged;
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Keep the newest question or answer in view.
+        _follow ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/follow.js");
+        await _follow.InvokeVoidAsync("follow", _conversation);
+    }
+
+    /// <summary>Calls the tool with whatever is filled in. The server asks for the rest.</summary>
+    private async Task QuoteAsync()
+    {
+        var arguments = new Dictionary<string, object?>();
+        if (!string.IsNullOrWhiteSpace(_destination)) arguments["destination"] = _destination.Trim();
+        if (double.TryParse(_weight, NumberStyles.Float, CultureInfo.InvariantCulture, out var kg)) arguments["weightKg"] = kg;
+        if (!string.IsNullOrEmpty(_speed)) arguments["speed"] = _speed;
+
+        await Session.QuoteAsync(arguments);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Session.Changed -= OnChanged;
+        Session.Wire.Changed -= OnChanged;
+        try
+        {
+            if (_follow is not null)
+            {
+                await _follow.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

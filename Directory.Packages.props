@@ -6,6 +6,8 @@
     <!-- Model Context Protocol C# SDK (2026-07-28 spec, multi round-trip requests) -->
     <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
+    <!-- MCP Apps extension (io.modelcontextprotocol/ui): ui:// resources and tool _meta.ui. Experimental (MCPEXP003). -->
+    <PackageVersion Include="ModelContextProtocol.Extensions.Apps" Version="2.2.0" />
 
     <!-- Microsoft.Extensions -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />

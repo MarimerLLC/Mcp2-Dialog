@@ -1,0 +1,16 @@
+﻿@inherits LayoutComponentBase
+@inject AgentSession Session
+
+<header class="top">
+    <h1>MCP 2 dialog agent</h1>
+    <span class="muted">MCP <code>2026-07-28</code> · multi round-trip requests · server <code>@Session.Options.Server</code></span>
+    <a class="dashboard" href="@Session.Options.DashboardUrl" target="_blank">Aspire dashboard ↗</a>
+</header>
+
+@Body
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
