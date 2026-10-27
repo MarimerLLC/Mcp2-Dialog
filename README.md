@@ -78,26 +78,26 @@ An alternative is to put only a dialog id in `requestState` and keep the state i
 dotnet run --project src/Mcp2Dialog.AppHost
 ```
 
-This starts the Aspire Dashboard at http://localhost:18888 and the MCP server at `http://localhost:5199/mcp`. The **Resources** page lists both apps:
+This starts the Aspire Dashboard at http://localhost:18908 and the MCP server at `http://localhost:5399/mcp`. The **Resources** page lists both apps:
 
 - **mcp2dialog-server** runs right away. Its console output, structured logs, traces, and metrics are linked from its row.
 - **mcp2dialog-agent** doesn't start automatically. Press **Start** (▶) on its row to run one unattended dialog (`quote --auto --wire`). It exits when the dialog is done, and you can press Start again for another run. Its console log shows the wire traffic, and its trace shows all the rounds.
 
-The AppHost's `http` launch profile puts the dashboard's OTLP endpoint on `http://localhost:4317` and turns off dashboard login and the OTLP API key. That's for a local sample only. It means an agent you run from your own terminal (step 2) also reports to this dashboard, and appears under Traces and Structured logs as `mcp2dialog-agent-<id>`. The Resources page only lists apps the AppHost started.
+The AppHost's `http` launch profile puts the dashboard's OTLP endpoint on `http://localhost:4337` and turns off dashboard login and the OTLP API key. That's for a local sample only. It means an agent you run from your own terminal (step 2) also reports to this dashboard, and appears under Traces and Structured logs as `mcp2dialog-agent-<id>`. The Resources page only lists apps the AppHost started.
 
 Aspire passes the standard `OTEL_*` variables (endpoint, headers, service name, and instance id) to the apps it starts. `TelemetryExtensions` defers to them, so their telemetry is linked to their rows on the Resources page.
 
 **Option B: standalone dashboard container and server**
 
 ```bash
-docker run -d --rm --name mcp2dialog-dashboard -p 18888:18888 -p 4317:18889   -e ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true   mcr.microsoft.com/dotnet/aspire-dashboard:latest
+docker run -d --rm --name mcp2dialog-dashboard-tasks -p 18908:18888 -p 4337:18889   -e ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true   mcr.microsoft.com/dotnet/aspire-dashboard:latest
 
 dotnet run --project src/Mcp2Dialog.Server
 ```
 
 The standalone dashboard only receives telemetry (Traces, Structured logs, Metrics). Its **Resources page is empty** because no AppHost is reporting to it. It never lists Docker containers either.
 
-Both apps export OTLP/gRPC to `http://localhost:4317` by default. You can change that with `Otlp:Endpoint` in `appsettings.json`. Without any collector, set `Otlp:Enabled` to `false` on the server, or pass `--no-otlp` to the agent.
+Both apps export OTLP/gRPC to `http://localhost:4337` by default. You can change that with `Otlp:Endpoint` in `appsettings.json`. Without any collector, set `Otlp:Enabled` to `false` on the server, or pass `--no-otlp` to the agent.
 
 ### 2. Run the agent
 

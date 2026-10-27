@@ -7,8 +7,8 @@ internal class AgentSettings : CommandSettings
 {
     [CommandOption("--server <URL>")]
     [Description("MCP endpoint of the server.")]
-    [DefaultValue("http://localhost:5199/mcp")]
-    public string Server { get; set; } = "http://localhost:5199/mcp";
+    [DefaultValue("http://localhost:5399/mcp")]
+    public string Server { get; set; } = "http://localhost:5399/mcp";
 
     [CommandOption("--wire")]
     [Description("Show every JSON-RPC message sent and received over HTTP.")]

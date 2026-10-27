@@ -1,6 +1,6 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// The MCP server. Aspire uses its "http" launch profile, so it's still reachable at http://localhost:5199/mcp
+// The MCP server. Aspire uses its "http" launch profile, so it's still reachable at http://localhost:5399/mcp
 // (through Aspire's proxy). Aspire also passes the OTEL_* variables that point its telemetry at this dashboard.
 var server = builder.AddProject<Projects.Mcp2Dialog_Server>("mcp2dialog-server");
 

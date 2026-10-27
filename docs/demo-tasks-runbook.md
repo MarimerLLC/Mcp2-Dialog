@@ -25,13 +25,13 @@ All commands run from the repository root in PowerShell.
    Remove-Item -Recurse -Force .demo, src/Mcp2Dialog.Server/.demo, src/Mcp2Dialog.Agent/.demo -ErrorAction SilentlyContinue
    ```
 
-4. Tab A: start the AppHost (server on http://localhost:5199/mcp, dashboard on http://localhost:18888):
+4. Tab A: start the AppHost (server on http://localhost:5399/mcp, dashboard on http://localhost:18908):
 
    ```powershell
    dotnet run --project src/Mcp2Dialog.AppHost
    ```
 
-   Open the dashboard in the browser on the **Traces** page. Nothing else may be using ports 5199, 18888 or 4317.
+   Open the dashboard in the browser on the **Traces** page. Nothing else may be using ports 5399, 18908 or 4337.
    During development, a second checkout of this repo on the same machine took those ports and broke the AppHost.
 5. Tab B: warm up once with `dotnet run --project src/Mcp2Dialog.Agent -- tools` (it should list `book_freight`), then
    `cls`.
@@ -114,7 +114,7 @@ Remove-Item -Recurse -Force .demo, src/Mcp2Dialog.Server/.demo, src/Mcp2Dialog.A
 | `Connection refused` / the agent can't connect | "The server isn't up. Here's one I made earlier." | Check tab A; otherwise play the clip. |
 | The wire view scrolls too fast | "The protocol detail is in the clip; here's the story view." | Run without `--wire`: a live status panel (task, status, message, elapsed, polls) instead of panels. |
 | The trace is missing in the dashboard | "Telemetry is batched; give it a second." | Refresh Traces; search for `mcp2dialog.task.id`. Or show the screenshot `docs/evidence/tasks/aspire-trace-kill-and-resume.png`. |
-| AppHost won't start (port in use) | — | Close whatever holds 5199/18888/4317 and restart, or run the server on its own (`dotnet run --project src/Mcp2Dialog.Server`) and skip the dashboard. |
+| AppHost won't start (port in use) | — | Close whatever holds 5399/18908/4337 and restart, or run the server on its own (`dotnet run --project src/Mcp2Dialog.Server`) and skip the dashboard. |
 
 ## Recording the fallback clip
 
@@ -134,5 +134,3 @@ These weren't checked in development, so check them during rehearsal:
   The code path is the same as the verified `--wire` case, but the test harness couldn't confirm it.
 - Readability at 1080p on a projector. It was only judged from 80- and 110-column transcripts.
 - Restarting the server from the Aspire dashboard with the file store (verified only with the standalone server).
-- The AppHost on its default ports (18888/4317/5199). It was verified on alternative ports because another session on
-  the development machine was using the defaults.
