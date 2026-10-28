@@ -13,25 +13,28 @@ Everything targets .NET 10 (`global.json` pins SDK 10.0.401 with `latestFeature`
 
 ## Branches
 
-This repo has three branches. Each one is a different demo built on the same sample, and each branch's README covers its own demo. You're reading the README for `demo/tasks`.
+This repo has four branches. Each one is a different demo built on the same sample, and each branch's README covers its own demo. You're reading the README for `demo/tasks`.
 
 | Branch | Demo |
 |---|---|
 | [`main`](https://github.com/MarimerLLC/Mcp2-Dialog/tree/main) | The base MRTR dialog (`get_shipping_quote`) on its own |
 | [`demo/scaleout`](https://github.com/MarimerLLC/Mcp2-Dialog/tree/demo/scaleout) | Two server instances behind a YARP round-robin gateway with no sticky sessions, showing a dialog that survives switching instances (and losing one) because all its state is in `requestState` |
 | [`demo/tasks`](https://github.com/MarimerLLC/Mcp2-Dialog/tree/demo/tasks) (this branch) | Adds a `book_freight` tool that uses the MCP Tasks extension (`io.modelcontextprotocol/tasks`): the server returns a durable task handle and the client polls for the result. See [Second demo](#second-demo-the-tasks-extension-book_freight) |
+| [`demo/mcp-apps`](https://github.com/MarimerLLC/Mcp2-Dialog/tree/demo/mcp-apps) | Replaces the CLI agent with a Blazor web agent that shows the questions as forms and the wire traffic in a panel, and can act as an MCP Apps host (`io.modelcontextprotocol/ui`) for a quote card the server ships |
 
 To switch demos, check out the branch, for example `git switch main`.
 
-Each demo uses its own ports, so all three can run at the same time. To do that, give each branch its own folder with `git worktree add ../Mcp2-Dialog-scaleout demo/scaleout` (and the same for `main`).
+Each demo uses its own ports, so all four can run at the same time. To do that, give each branch its own folder with `git worktree add ../Mcp2-Dialog-scaleout demo/scaleout` (and the same for `main`).
 
-| Port | `main` | `demo/scaleout` | `demo/tasks` |
-|---|---|---|---|
-| Aspire dashboard | 18888 | 18898 | 18908 |
-| Dashboard OTLP (gRPC) | 4317 | 4327 | 4337 |
-| Aspire resource service | 20144 | 20154 | 20164 |
-| MCP endpoint (`/mcp`) | 5199 | 5203 (gateway) | 5399 |
-| Server instances | | 5201 (server-a), 5202 (server-b) | |
+| Port | `main` | `demo/scaleout` | `demo/tasks` | `demo/mcp-apps` |
+|---|---|---|---|---|
+| Aspire dashboard | 18888 | 18898 | 18908 | 18918 |
+| Dashboard OTLP (gRPC) | 4317 | 4327 | 4337 | 4347 |
+| Aspire resource service | 20144 | 20154 | 20164 | 20174 |
+| MCP endpoint (`/mcp`) | 5199 | 5203 (gateway) | 5399 | 5499 |
+| Server instances | | 5201 (server-a), 5202 (server-b) | | |
+| Web agent | | | | 5498 |
+| MCP Apps sandbox proxy | | | | 5497 |
 
 ## How the dialog works
 
