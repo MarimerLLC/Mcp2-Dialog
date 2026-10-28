@@ -14,27 +14,28 @@ Everything targets .NET 10 (`global.json` pins SDK 10.0.401 with `latestFeature`
 
 ## Branches
 
-This repo has three branches. Each one is a different demo built on the same sample, and each branch's README covers its own demo.
+This repo has four branches. Each one is a different demo built on the same sample, and each branch's README covers its own demo. You're reading the README for `demo/mcp-apps`.
 
 | Branch | Demo |
 |---|---|
-| [`main`](https://github.com/MarimerLLC/Mcp2-Dialog/tree/main) | The base MRTR dialog described in this README |
+| [`main`](https://github.com/MarimerLLC/Mcp2-Dialog/tree/main) | The base MRTR dialog (`get_shipping_quote`) with the CLI agent |
 | [`demo/scaleout`](https://github.com/MarimerLLC/Mcp2-Dialog/tree/demo/scaleout) | Two server instances behind a YARP round-robin gateway with no sticky sessions, showing a dialog that survives switching instances (and losing one) because all its state is in `requestState` |
 | [`demo/tasks`](https://github.com/MarimerLLC/Mcp2-Dialog/tree/demo/tasks) | Adds a `book_freight` tool that uses the MCP Tasks extension (`io.modelcontextprotocol/tasks`): the server returns a durable task handle and the client polls for the result |
+| [`demo/mcp-apps`](https://github.com/MarimerLLC/Mcp2-Dialog/tree/demo/mcp-apps) (this branch) | Replaces the CLI agent with a Blazor web agent that shows the questions as forms and the wire traffic in a panel, and can act as an MCP Apps host (`io.modelcontextprotocol/ui`) for a quote card the server ships. See [MCP Apps](#mcp-apps-optional) |
 
-To switch demos, check out the branch, for example `git switch demo/tasks`.
+To switch demos, check out the branch, for example `git switch main`.
 
-Each demo uses its own ports, so all three can run at the same time. To do that, give each branch its own folder with `git worktree add ../Mcp2-Dialog-tasks demo/tasks` (and the same for `demo/scaleout`).
+Each demo uses its own ports, so all four can run at the same time. To do that, give each branch its own folder with `git worktree add ../Mcp2-Dialog-tasks demo/tasks` (and the same for the others).
 
-| Port | `main` | `demo/scaleout` | `demo/tasks` |
-|---|---|---|---|
-| Aspire dashboard | 18888 | 18898 | 18908 |
-| Dashboard OTLP (gRPC) | 4317 | 4327 | 4337 |
-| Aspire resource service | 20144 | 20154 | 20164 |
-| MCP endpoint (`/mcp`) | 5199 | 5203 (gateway) | 5399 |
-| Server instances | | 5201 (server-a), 5202 (server-b) | |
-| Web agent | 5198 | | |
-| MCP Apps sandbox proxy | 5197 | | |
+| Port | `main` | `demo/scaleout` | `demo/tasks` | `demo/mcp-apps` |
+|---|---|---|---|---|
+| Aspire dashboard | 18888 | 18898 | 18908 | 18918 |
+| Dashboard OTLP (gRPC) | 4317 | 4327 | 4337 | 4347 |
+| Aspire resource service | 20144 | 20154 | 20164 | 20174 |
+| MCP endpoint (`/mcp`) | 5199 | 5203 (gateway) | 5399 | 5499 |
+| Server instances | | 5201 (server-a), 5202 (server-b) | | |
+| Web agent | | | | 5498 |
+| MCP Apps sandbox proxy | | | | 5497 |
 
 ## How the dialog works
 
@@ -91,30 +92,30 @@ An alternative is to put only a dialog id in `requestState` and keep the state i
 dotnet run --project src/Mcp2Dialog.AppHost
 ```
 
-This starts the Aspire Dashboard at http://localhost:18888 and the MCP server at `http://localhost:5199/mcp`. The **Resources** page lists both apps:
+This starts the Aspire Dashboard at http://localhost:18918 and the MCP server at `http://localhost:5499/mcp`. The **Resources** page lists both apps:
 
 - **mcp2dialog-server** runs right away. Its console output, structured logs, traces, and metrics are linked from its row.
-- **mcp2dialog-agent** is the web agent. It starts after the server. Open it with the **Agent UI** link on its row (http://localhost:5198). Its second URL, http://localhost:5197, is the MCP Apps sandbox proxy, so it's listed only in the resource's details.
+- **mcp2dialog-agent** is the web agent. It starts after the server. Open it with the **Agent UI** link on its row (http://localhost:5498). Its second URL, http://localhost:5497, is the MCP Apps sandbox proxy, so it's listed only in the resource's details.
 
-The AppHost's `http` launch profile puts the dashboard's OTLP endpoint on `http://localhost:4317` and turns off dashboard login and the OTLP API key. That's for a local sample only. It means an agent you run from your own terminal (step 2) also reports to this dashboard, and appears under Traces and Structured logs as `mcp2dialog-agent-<id>`. The Resources page only lists apps the AppHost started.
+The AppHost's `http` launch profile puts the dashboard's OTLP endpoint on `http://localhost:4347` and turns off dashboard login and the OTLP API key. That's for a local sample only. It means an agent you run from your own terminal (step 2) also reports to this dashboard, and appears under Traces and Structured logs as `mcp2dialog-agent-<id>`. The Resources page only lists apps the AppHost started.
 
 Aspire passes the standard `OTEL_*` variables (endpoint, headers, service name, and instance id) to the apps it starts. `TelemetryExtensions` defers to them, so their telemetry is linked to their rows on the Resources page.
 
 **Option B: standalone dashboard container and server**
 
 ```bash
-docker run -d --rm --name mcp2dialog-dashboard -p 18888:18888 -p 4317:18889   -e ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true   mcr.microsoft.com/dotnet/aspire-dashboard:latest
+docker run -d --rm --name mcp2dialog-dashboard-mcp-apps -p 18918:18888 -p 4347:18889   -e ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true   mcr.microsoft.com/dotnet/aspire-dashboard:latest
 
 dotnet run --project src/Mcp2Dialog.Server
 ```
 
 The standalone dashboard only receives telemetry (Traces, Structured logs, Metrics). Its **Resources page is empty** because no AppHost is reporting to it. It never lists Docker containers either.
 
-Both apps export OTLP/gRPC to `http://localhost:4317` by default. You can change that with `Otlp:Endpoint` in `appsettings.json`. Without any collector, set `Otlp:Enabled` to `false` on the server, or pass `--no-otlp` to the agent.
+Both apps export OTLP/gRPC to `http://localhost:4347` by default. You can change that with `Otlp:Endpoint` in `appsettings.json`. Without any collector, set `Otlp:Enabled` to `false` on the server, or pass `--no-otlp` to the agent.
 
 ### 2. Use the agent
 
-**Web agent (http://localhost:5198)**
+**Web agent (http://localhost:5498)**
 
 The AppHost starts it. To run it on its own, use `dotnet run --project src/Mcp2Dialog.AgentUi`.
 
@@ -160,7 +161,7 @@ The stage script for this demo, with the narration beats, Q&A extras, and fallba
 [MCP Apps](https://modelcontextprotocol.io/seps/1865-mcp-apps-interactive-user-interfaces-for-mcp) (`io.modelcontextprotocol/ui`) is an MCP extension that lets a server ship an interactive UI for a tool. The UI isn't fragments merged into the agent's page. It's a self-contained HTML app that the host runs in a sandboxed iframe, and the data reaches it through ordinary tool calls. Here the web agent is the host. Turn on **MCP Apps UI** to try it.
 
 ```
-Server                         Agent (host, :5198)                  Sandbox proxy (:5197)     App (srcdoc iframe)
+Server                         Agent (host, :5498)                  Sandbox proxy (:5497)     App (srcdoc iframe)
   │ tools/list: get_shipping_quote  _meta.ui.resourceUri = ui://mcp2dialog/quote-card.html          │
   │ ◄── resources/read ui://…    │                                     │                          │
   │                              │ creates the proxy iframe ──────────►│                          │
@@ -177,7 +178,7 @@ Server                         Agent (host, :5198)                  Sandbox prox
   - `[McpAppUi(ResourceUri = ...)]` on `get_shipping_quote` and `.WithMcpApps()` produce the tool's `_meta.ui`.
   - `QuoteCardResource` serves the HTML as a `ui://` resource.
   - The tool now returns a `CallToolResult` with the same text as before plus `structuredContent` for the card. Hosts don't give `structuredContent` to a model.
-- **Sandbox.** A web host must load apps through a proxy on a different origin. Here the agent also listens on port 5197, which serves only `/sandbox` and puts the resource's `_meta.ui.csp` in a `Content-Security-Policy` header. With no CSP declared, that's the spec's default: no network access. The app runs in a `srcdoc` iframe without `allow-same-origin`, so it gets an opaque origin and can't touch the agent page, its cookies, or the Blazor circuit.
+- **Sandbox.** A web host must load apps through a proxy on a different origin. Here the agent also listens on port 5497, which serves only `/sandbox` and puts the resource's `_meta.ui.csp` in a `Content-Security-Policy` header. With no CSP declared, that's the spec's default: no network access. The app runs in a `srcdoc` iframe without `allow-same-origin`, so it gets an opaque origin and can't touch the agent page, its cookies, or the Blazor circuit.
 - **Host side** (`McpAppInstance`):
   - It answers `ui/initialize` with host info, capabilities, and context (theme variables, `toolInfo`).
   - It sends `tool-input` once the app is initialized, then `tool-result` (or `tool-cancelled`).

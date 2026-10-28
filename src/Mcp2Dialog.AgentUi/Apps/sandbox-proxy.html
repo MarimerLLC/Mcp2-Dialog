@@ -2,8 +2,8 @@
 <!--
   MCP Apps sandbox proxy: the outer frame of the double-iframe sandbox that the spec requires for web hosts.
 
-    agent page (http://localhost:5198)
-      └─ this proxy (http://localhost:5197/sandbox, a different origin, CSP from the app's ui.csp as an HTTP header)
+    agent page (http://localhost:5498)
+      └─ this proxy (http://localhost:5497/sandbox, a different origin, CSP from the app's ui.csp as an HTTP header)
            └─ the app's HTML (srcdoc, no allow-same-origin, so an opaque origin that inherits this page's CSP)
 
   The proxy only relays JSON-RPC messages between the agent page and the app. It handles one message itself,

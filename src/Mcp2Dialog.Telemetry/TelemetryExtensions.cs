@@ -38,7 +38,7 @@ public static class TelemetryExtensions
         // (endpoint, headers with the dashboard API key, protocol, service name, and instance id). Those win.
         // Otherwise the endpoint comes from Otlp:Endpoint in appsettings.json.
         var launcherProvidesEndpoint = !string.IsNullOrEmpty(configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
-        var otlpEndpoint = configuration["Otlp:Endpoint"] ?? "http://localhost:4317";
+        var otlpEndpoint = configuration["Otlp:Endpoint"] ?? "http://localhost:4347";
         serviceName = configuration["OTEL_SERVICE_NAME"] ?? serviceName;
 
         // Serilog's OTLP sink and the OpenTelemetry SDK each describe the resource. Give them the same

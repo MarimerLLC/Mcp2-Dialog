@@ -1,4 +1,4 @@
-# Runbook: MRTR dialog demo (the base sample)
+# Runbook: MRTR dialog demo with the web agent (`demo/mcp-apps`)
 
 About three and a half minutes of stage time. A tool that can't answer until it knows enough asks the user for what's missing, over several round trips, on a server that keeps nothing in memory between them. `requestState` carries the dialog.
 
@@ -8,18 +8,18 @@ The machine timings and all the output quoted here come from runs on the dev lap
 
 | Port | What | Notes |
 |---|---|---|
-| 18888 | Aspire dashboard | from the AppHost launch profile |
-| 4317 | Dashboard OTLP (gRPC) | terminal-launched agents report here |
-| 20144 | Aspire resource service | internal |
-| 5199 | `mcp2dialog-server` (`/mcp`) | the agent's default `--server` |
-| 5198 | `mcp2dialog-agent` (web agent) | the **Agent UI** link in Resources |
-| 5197 | MCP Apps sandbox proxy | served by the web agent, a separate origin on purpose |
+| 18918 | Aspire dashboard | from the AppHost launch profile |
+| 4347 | Dashboard OTLP (gRPC) | terminal-launched agents report here |
+| 20174 | Aspire resource service | internal |
+| 5499 | `mcp2dialog-server` (`/mcp`) | the agent's default `--server` |
+| 5498 | `mcp2dialog-agent` (web agent) | the **Agent UI** link in Resources |
+| 5497 | MCP Apps sandbox proxy | served by the web agent, a separate origin on purpose |
 
-The other two demos use their own ports (see the README's Branches section), so they can run at the same time as this one. If the README's standalone dashboard container (`mcp2dialog-dashboard`) is running, it also binds 18888 and 4317. Stop it first (`docker stop mcp2dialog-dashboard`).
+The other three demos use their own ports (see the README's Branches section), so they can run at the same time as this one. If the README's standalone dashboard container (`mcp2dialog-dashboard-mcp-apps`) is running, it also binds 18918 and 4347. Stop it first (`docker stop mcp2dialog-dashboard-mcp-apps`).
 
 ## Before the talk (5 minutes, not on stage)
 
-From the repo root, on branch `main`:
+From the repo root, on branch `demo/mcp-apps`:
 
 ```powershell
 dotnet build Mcp2Dialog.slnx                                         # must say 0 errors
@@ -27,7 +27,7 @@ dotnet run --project src/Mcp2Dialog.AppHost
 ```
 
 - The build shows 2 NuGet audit warnings for `MessagePack` (pulled in by Aspire). They're expected and don't affect the demo.
-- The dashboard is at http://localhost:18888. **Resources** should list `mcp2dialog-server` and `mcp2dialog-agent` (the web agent) as Running. Startup took about 5 s on the dev laptop.
+- The dashboard is at http://localhost:18918. **Resources** should list `mcp2dialog-server` and `mcp2dialog-agent` (the web agent) as Running. Startup took about 5 s on the dev laptop.
 - The very first AppHost start on a machine downloads `aspire.cli`, which took about 2.5 minutes and can hit Aspire's 120-second timeout. Do one full start the day before, and don't clear the NuGet cache afterwards.
 - In a **second terminal** (this is the one the audience reads), make the font big and the window at least 80 columns wide. All the output fits in 80 columns.
 - Warm everything up with one dialog:
@@ -136,7 +136,7 @@ $meta = @{ 'io.modelcontextprotocol/protocolVersion' = '2026-07-28'
            'io.modelcontextprotocol/clientCapabilities' = @{ elicitation = @{ form = @{} } } }
 $body = @{ jsonrpc = '2.0'; id = 1; method = 'tools/call'
            params = @{ name = 'get_shipping_quote'; arguments = @{}; _meta = $meta; requestState = 'CfDJ8-not-a-real-state' } } | ConvertTo-Json -Depth 10
-(Invoke-WebRequest http://localhost:5199/mcp -Method Post -ContentType 'application/json' -Body $body -UseBasicParsing -Headers @{
+(Invoke-WebRequest http://localhost:5499/mcp -Method Post -ContentType 'application/json' -Body $body -UseBasicParsing -Headers @{
   'MCP-Protocol-Version' = '2026-07-28'; 'Mcp-Method' = 'tools/call'; 'Mcp-Name' = 'get_shipping_quote'
   Accept = 'application/json, text/event-stream' }).Content
 ```
@@ -149,7 +149,7 @@ Run the same request with `'io.modelcontextprotocol/clientCapabilities' = @{}`, 
 
 ### Run it in the web agent instead
 
-Open **Agent UI** on the `mcp2dialog-agent` row in Resources (http://localhost:5198). The same beats work there:
+Open **Agent UI** on the `mcp2dialog-agent` row in Resources (http://localhost:5498). The same beats work there:
 
 - The server's questions are cards with Answer, Decline, and Cancel.
 - The Wire panel on the right replaces `--wire`.
@@ -169,7 +169,7 @@ In the web agent, tick **MCP Apps UI** and press **Get shipping quote**. Auto-an
 - In the card, press **Switch** on Express. That's the app sending `tools/call` through its host. It's one round, because the app passes every argument.
 - Then press **Switch** on Overnight. The server asks about the surcharge again, and the question appears in the agent, not in the app.
 - **Book this shipment** sends a `ui/message`. The agent shows it but has no model to answer it.
-- Sandboxing: the card runs on another origin (port 5197) with a no-network CSP.
+- Sandboxing: the card runs on another origin (port 5497) with a no-network CSP.
 
 ## Reset between rehearsals
 
@@ -181,8 +181,8 @@ There's nothing to reset: the server keeps no dialog state. To start clean, stop
 |---|---|
 | `The dialog state is invalid or has expired` in the interactive beat | More than 10 minutes passed at a prompt. "It's time-limited, by design." Run `quote` again. |
 | `Quote cancelled: the user chose to …` | A blank answer, followed by Decline or Cancel. Run it again. |
-| Agent can't connect to `localhost:5199` | The AppHost isn't running, or isn't up yet. Check Resources. |
-| Port already in use at startup | Something else holds 18888, 4317, or 5199. Find it with `Get-NetTCPConnection -LocalPort 5199 -State Listen` and stop it. The other two demos use different ports, so it isn't them. |
+| Agent can't connect to `localhost:5499` | The AppHost isn't running, or isn't up yet. Check Resources. |
+| Port already in use at startup | Something else holds 18918, 4347, or 5499. Find it with `Get-NetTCPConnection -LocalPort 5499 -State Listen` and stop it. The other three demos use different ports, so it isn't them. |
 | AppHost fails with `DNX could not restore or run aspire.cli` | The one-time `aspire.cli` download didn't finish in time. Run the AppHost again, or use the no-Aspire fallback. |
 | Aspire won't start | Use the no-Aspire fallback below. |
 
