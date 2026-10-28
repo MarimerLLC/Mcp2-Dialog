@@ -13,7 +13,7 @@ The machine timings and all the output quoted here come from runs on the dev lap
 | 20144 | Aspire resource service | internal |
 | 5199 | `mcp2dialog-server` (`/mcp`) | the agent's default `--server` |
 
-The other two demos use their own ports (see the README's Branches section), so they can run at the same time as this one. If the README's standalone dashboard container (`mcp2dialog-dashboard`) is running, it also binds 18888 and 4317. Stop it first (`docker stop mcp2dialog-dashboard`).
+The other three demos use their own ports (see the README's Branches section), so they can run at the same time as this one. If the README's standalone dashboard container (`mcp2dialog-dashboard`) is running, it also binds 18888 and 4317. Stop it first (`docker stop mcp2dialog-dashboard`).
 
 ## Before the talk (5 minutes, not on stage)
 
@@ -160,7 +160,7 @@ There's nothing to reset: the server keeps no dialog state. To start clean, stop
 | `The dialog state is invalid or has expired` in the interactive beat | More than 10 minutes passed at a prompt. "It's time-limited, by design." Run `quote` again. |
 | `Quote cancelled: the user chose to …` | A blank answer, followed by Decline or Cancel. Run it again. |
 | Agent can't connect to `localhost:5199` | The AppHost isn't running, or isn't up yet. Check Resources. |
-| Port already in use at startup | Something else holds 18888, 4317, or 5199. Find it with `Get-NetTCPConnection -LocalPort 5199 -State Listen` and stop it. The other two demos use different ports, so it isn't them. |
+| Port already in use at startup | Something else holds 18888, 4317, or 5199. Find it with `Get-NetTCPConnection -LocalPort 5199 -State Listen` and stop it. The other three demos use different ports, so it isn't them. |
 | AppHost fails with `DNX could not restore or run aspire.cli` | The one-time `aspire.cli` download didn't finish in time. Run the AppHost again, or use the no-Aspire fallback. |
 | Aspire won't start | Use the no-Aspire fallback below. |
 
